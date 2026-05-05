@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id                String   @id @default(uuid())
+  cnpj              String   @unique
+  razaoSocial       String
+  nomeFantasia      String?
+  inscricaoEstadual String?
+  email             String?
+  telefone          String?
+  logradouro        String?
+  numero            String?
+  bairro            String?
+  municipio         String?
+  uf                String?
+  cep               String?
+  codigoIbge        String?
+  crt               String?  // Regime Tributário
+  
+  // Certificado Digital (Apenas o path para o .pfx armazenado no servidor)
+  certificadoPath   String?
+  certificadoSenha  String?
+
+  users             User[]
+  categories        Category[]
+  products          Product[]
+  orders            Order[]
+  cashFlows         CashFlow[]
+  accountReceivables AccountReceivable[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("ADMIN") // ADMIN, OPERATOR
+  
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  cashFlows CashFlow[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  products  Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  name           String
+  sku            String   @unique // Código Interno
+  barcode        String?  // EAN / GTIN
+  price          Float
+  costPrice      Float?
+  stock          Float    @default(0)
+  unit           String   @default("UN") // UN, KG, CX, etc
+  
+  // Dados Fiscais Básicos
+  ncm            String?
+  cest           String?
+  cfopPadrao     String?
+  origem         String   @default("0") // 0 - Nacional, 1 - Estrangeira Importação Direta, etc.
+
+  categoryId     String?
+  category       Category? @relation(fields: [categoryId], references: [id])
+  
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id])
+  
+  stockMoves     StockTransaction[]
+  orderItems     OrderItem[]
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model StockTransaction {
+  id          String   @id @default(uuid())
+  type        String   // IN, OUT
+  quantity    Float
+  reason      String?  // Ex: "Compra", "Venda", "Ajuste manual"
+  
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+
+  createdAt   DateTime @default(now())
+}
+
+model Order {
+  id            String   @id @default(uuid())
+  orderNumber   Int      @unique
+  status        String   @default("ORCAMENTO") // ORCAMENTO, PEDIDO, FATURADO, CANCELADO
+  customerName  String?
+  customerDoc   String?  // CPF/CNPJ
+  totalAmount   Float    @default(0)
+  discount      Float    @default(0)
+  netAmount     Float    @default(0)
+  
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+
+  items         OrderItem[]
+  receivables   AccountReceivable[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model OrderItem {
+  id            String   @id @default(uuid())
+  quantity      Float
+  unitPrice     Float
+  totalPrice    Float
+  
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
+  
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+}
+
+model CashFlow {
+  id            String   @id @default(uuid())
+  type          String   // OPEN, CLOSE, IN, OUT
+  amount        Float
+  description   String?
+  
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+
+  createdAt     DateTime @default(now())
+}
+
+model AccountReceivable {
+  id            String   @id @default(uuid())
+  description   String
+  amount        Float
+  dueDate       DateTime
+  status        String   @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
+  
+  orderId       String?
+  order         Order?   @relation(fields: [orderId], references: [id])
+  
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

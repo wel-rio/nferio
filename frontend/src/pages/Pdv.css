@@ -1,0 +1,260 @@
+.pdv-container {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  height: 100vh;
+  background: #09090b;
+  color: #fff;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+}
+
+.pdv-main {
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+  border-right: 1px solid #18181b;
+}
+
+.pdv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.pdv-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.pdv-brand h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.pdv-brand h1 span {
+  color: var(--accent-primary);
+}
+
+.pdv-search-bar {
+  display: flex;
+  align-items: center;
+  background: #18181b;
+  border: 2px solid #27272a;
+  border-radius: 12px;
+  padding: 0 1.5rem;
+  width: 500px;
+  height: 60px;
+  transition: border-color 0.2s;
+}
+
+.pdv-search-bar:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.pdv-search-bar input {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 1.25rem;
+  margin-left: 1rem;
+  width: 100%;
+  outline: none;
+}
+
+.pdv-items-list {
+  flex: 1;
+  overflow-y: auto;
+  background: #09090b;
+  border-radius: 12px;
+}
+
+.pdv-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pdv-table th {
+  text-align: left;
+  padding: 1rem;
+  color: #71717a;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  border-bottom: 1px solid #18181b;
+}
+
+.pdv-table td {
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid #18181b;
+}
+
+.item-index {
+  color: #3f3f46;
+  margin-right: 1rem;
+  font-weight: 700;
+}
+
+.item-info {
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.item-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.item-sku {
+  font-size: 0.75rem;
+  color: #71717a;
+}
+
+.qty-cell {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.qty-cell button {
+  background: #18181b;
+  border: 1px solid #27272a;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.item-total {
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+.pdv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #27272a;
+}
+
+.pdv-sidebar {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background: #111113;
+}
+
+.summary-card {
+  padding: 2rem;
+  background: linear-gradient(135deg, #1e1b4b 0%, #09090b 100%);
+  border: 1px solid #312e81;
+}
+
+.summary-card label {
+  color: #a5b4fc;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+}
+
+.total-value {
+  font-size: 3.5rem;
+  font-weight: 900;
+  margin: 0.5rem 0;
+  letter-spacing: -0.05em;
+}
+
+.pdv-hardware-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: #18181b;
+}
+
+.status-item.online { color: #10b981; border-left: 3px solid #10b981; }
+.status-item.offline { color: #ef4444; border-left: 3px solid #ef4444; opacity: 0.6; }
+
+.btn-pay {
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 2rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: auto;
+  transition: transform 0.1s;
+}
+
+.btn-pay:active { transform: scale(0.98); }
+.btn-pay:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+
+.pdv-payment-modal {
+  width: 600px;
+  padding: 2rem;
+}
+
+.payment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.payment-btn {
+  background: #18181b;
+  border: 2px solid #27272a;
+  border-radius: 12px;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.payment-btn:hover {
+  background: #27272a;
+  border-color: var(--accent-primary);
+}
+
+.pix-icon {
+  width: 32px;
+  height: 32px;
+  background: #32bcad;
+  border-radius: 4px;
+  font-weight: 900;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.payment-total {
+  text-align: center;
+  padding-top: 2rem;
+  border-top: 1px solid #27272a;
+}
