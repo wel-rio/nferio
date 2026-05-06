@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
 // Create a new employee
 router.post('/', async (req, res) => {
   try {
-    const { name, email, password, role, companyId } = req.body;
+    const { name, email, password, role, companyId, permissions } = req.body;
 
     if (!companyId) return res.status(400).json({ error: 'Company ID is required' });
 
@@ -38,6 +38,7 @@ router.post('/', async (req, res) => {
         email,
         password: hashedPassword,
         role: role || 'CAIXA',
+        permissions: permissions || 'all',
         companyId: String(companyId)
       }
     });
