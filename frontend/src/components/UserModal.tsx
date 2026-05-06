@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, UserPlus, Shield } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface UserModalProps {
   onClose: () => void;
@@ -8,6 +9,7 @@ interface UserModalProps {
 }
 
 export default function UserModal({ onClose, onSuccess }: UserModalProps) {
+  const { company } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -22,6 +24,7 @@ export default function UserModal({ onClose, onSuccess }: UserModalProps) {
     { label: 'Estoque', value: 'stock' },
     { label: 'Financeiro', value: 'finance' },
     { label: 'Clientes', value: 'customers' },
+    { label: 'Relatórios', value: 'reports' },
     { label: 'Usuários', value: 'users' },
     { label: 'Configurações', value: 'settings' }
   ];
@@ -36,11 +39,12 @@ export default function UserModal({ onClose, onSuccess }: UserModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!company) return;
     try {
       await api.post('/users', {
         ...formData,
         permissions: formData.permissions.join(','),
-        companyId: 'default-company-id'
+        companyId: company.id
       });
       onSuccess();
       onClose();

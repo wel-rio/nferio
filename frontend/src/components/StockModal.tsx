@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Package, TrendingUp, TrendingDown } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface StockModalProps {
   productId: string;
@@ -11,6 +12,7 @@ interface StockModalProps {
 }
 
 export default function StockModal({ productId, productName, currentStock, onClose, onSuccess }: StockModalProps) {
+  const { company } = useAuth();
   const [formData, setFormData] = useState({
     quantity: 0,
     type: 'ADD', // ADD or REMOVE
@@ -19,8 +21,12 @@ export default function StockModal({ productId, productName, currentStock, onClo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!company) return;
     try {
-      await api.post(`/products/${productId}/stock`, formData);
+      await api.post(`/products/${productId}/stock`, {
+        ...formData,
+        companyId: company.id
+      });
       onSuccess();
       onClose();
     } catch (error) {
@@ -66,6 +72,16 @@ export default function StockModal({ productId, productName, currentStock, onClo
           <div className="form-group">
             <label>Quantidade</label>
             <input type="number" className="glass-input" value={formData.quantity} onChange={e => setFormData({...formData, quantity: Number(e.target.value)})} required />
+          </div>
+
+          <div className="form-group" style={{ marginTop: '1rem' }}>
+            <label>Motivo</label>
+            <select className="glass-input" value={formData.reason} onChange={e => setFormData({...formData, reason: e.target.value})}>
+              <option value="Compra">Compra / Reposição</option>
+              <option value="Venda">Venda Manual</option>
+              <option value="Ajuste">Ajuste de Saldo</option>
+              <option value="Perda">Perda / Avaria</option>
+            </select>
           </div>
 
           <div className="modal-footer" style={{ marginTop: '1.5rem' }}>

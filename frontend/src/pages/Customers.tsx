@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { Users, Search, Plus, MapPin, Phone, Mail, Building2, Trash2, Edit, X } from 'lucide-react';
 
 export default function Customers() {
+  const { company } = useAuth();
   const [customers, setCustomers] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -23,10 +25,11 @@ export default function Customers() {
   });
 
   const fetchCustomers = async () => {
+    if (!company) return;
     try {
       setLoading(true);
       const res = await api.get('/customers', {
-        params: { companyId: 'default-company-id' } // Ajustar no futuro
+        params: { companyId: company.id }
       });
       setCustomers(res.data);
     } catch (error) {
@@ -63,11 +66,12 @@ export default function Customers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!company) return;
     try {
       if (formData.id) {
-        await api.put(`/customers/${formData.id}`, { ...formData, companyId: 'default-company-id' });
+        await api.put(`/customers/${formData.id}`, { ...formData, companyId: company.id });
       } else {
-        await api.post('/customers', { ...formData, companyId: 'default-company-id' });
+        await api.post('/customers', { ...formData, companyId: company.id });
       }
       setIsModalOpen(false);
       setFormData({ id: '', name: '', document: '', email: '', phone: '', type: 'CUSTOMER', ie: '', address: '', city: '', uf: '' });

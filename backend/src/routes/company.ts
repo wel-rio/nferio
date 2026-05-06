@@ -8,7 +8,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 // Configuração do Multer para salvar os certificados
-const certDir = '/home/ubuntu/nferio/backend/acbr/certs';
+const certDir = path.resolve(__dirname, '../../acbr/certs');
 
 // Cria a pasta se não existir
 if (!fs.existsSync(certDir)) {
@@ -59,6 +59,7 @@ router.post('/setup', upload.single('certificado'), async (req: Request, res: Re
       numero,
       bairro,
       cep,
+      telefone,
       cscId,
       cscKey,
       nfeSerie,

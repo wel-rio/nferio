@@ -1,4 +1,6 @@
+import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { 
   Wallet, 
   Search, 
@@ -13,6 +15,7 @@ import {
 } from 'lucide-react';
 
 export default function Finance() {
+  const { company } = useAuth();
   const [activeTab, setActiveTab] = useState<'PAYABLE' | 'RECEIVABLE'>('PAYABLE');
   const [data, setData] = useState<any[]>([]);
   const [summary, setSummary] = useState({ totalPayable: 0, totalReceivable: 0, balance: 0 });
@@ -20,12 +23,13 @@ export default function Finance() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const fetchData = async () => {
+    if (!company) return;
     try {
       setLoading(true);
       const endpoint = activeTab === 'PAYABLE' ? 'payables' : 'receivables';
       const [resData, resSummary] = await Promise.all([
-        api.get(`/finance/${endpoint}`),
-        api.get('/finance/summary')
+        api.get(`/finance/${endpoint}`, { params: { companyId: company.id } }),
+        api.get('/finance/summary', { params: { companyId: company.id } })
       ]);
       setData(resData.data);
       setSummary(resSummary.data);

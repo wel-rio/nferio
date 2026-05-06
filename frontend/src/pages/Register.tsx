@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, Receipt } from 'lucide-react';
+import { Building2, Receipt, Loader2 } from 'lucide-react';
+import api from '../services/api';
 import './Auth.css';
 
 export default function Register() {
@@ -9,13 +10,24 @@ export default function Register() {
     razaoSocial: '',
     email: '',
     password: '',
+    name: '',
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate register
-    navigate('/login');
+    setLoading(true);
+    setError('');
+    try {
+      await api.post('/auth/register', formData);
+      navigate('/login', { state: { message: 'Conta criada com sucesso! Faça login para começar.' } });
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erro ao realizar cadastro');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,6 +51,7 @@ export default function Register() {
         </div>
 
         <form onSubmit={handleRegister} className="auth-form">
+          {error && <div className="error-alert" style={{ color: 'var(--error)', marginBottom: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>{error}</div>}
           <div className="form-group">
             <label htmlFor="cnpj">CNPJ</label>
             <input
@@ -60,6 +73,19 @@ export default function Register() {
               className="glass-input"
               placeholder="Sua Empresa LTDA"
               value={formData.razaoSocial}
+              onChange={handleChange}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="name">Seu Nome</label>
+            <input
+              id="name"
+              type="text"
+              className="glass-input"
+              placeholder="Nome Completo"
+              value={formData.name}
               onChange={handleChange}
               required
             />
@@ -91,9 +117,9 @@ export default function Register() {
             />
           </div>
 
-          <button type="submit" className="btn-primary auth-submit">
-            <Receipt size={20} />
-            Criar Conta e Configurar
+          <button type="submit" className="btn-primary auth-submit" disabled={loading}>
+            {loading ? <Loader2 size={20} className="animate-spin" /> : <Receipt size={20} />}
+            {loading ? 'Processando...' : 'Criar Conta e Configurar'}
           </button>
         </form>
 

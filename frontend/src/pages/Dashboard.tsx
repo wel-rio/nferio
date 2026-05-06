@@ -13,7 +13,12 @@ import {
   UserCheck,
   Plus,
   Users,
-  Wallet
+  Wallet,
+  Save,
+  ShieldCheck,
+  BarChart3,
+  Shield,
+  FileDown
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -23,24 +28,26 @@ import OrderModal from '../components/OrderModal';
 import UserModal from '../components/UserModal';
 import NFeEntryModal from '../components/NFeEntryModal';
 import Customers from './Customers';
+import AdminMaster from './AdminMaster';
 import Finance from './Finance';
+import Reports from './Reports';
+import Users from './Users';
+import Inbound from './Inbound';
 import './Dashboard.css';
 
+import { useAuth } from '../context/AuthContext';
+
 export default function Dashboard() {
+  const { user, company, logout, isExpired } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const navigate = useNavigate();
-  
-  // Dados do usuário (em produção viria do seu login/JWT)
-  const [user] = useState({
-    name: 'Admin Master',
-    role: 'ADMIN',
-    permissions: 'all'
-  });
 
   const hasPermission = (slug: string) => {
-    if (user.role === 'ADMIN' || user.permissions === 'all') return true;
-    return user.permissions.split(',').includes(slug);
+    if (!user) return false;
+    if (user.role === 'OWNER' || user.role === 'ADMIN') return true;
+    const permissions = user.permissions ? user.permissions.split(',') : [];
+    return permissions.includes(slug);
   };
 
   // Products State
@@ -55,8 +62,9 @@ export default function Dashboard() {
   const [selectedNfeData, setSelectedNfeData] = useState<any>(null);
 
   const fetchUsers = async () => {
+    if (!company) return;
     try {
-      const res = await api.get('/users');
+      const res = await api.get('/users', { params: { companyId: company.id } });
       setUsers(res.data);
     } catch (error) {
       console.error('Failed to fetch users', error);
@@ -72,8 +80,9 @@ export default function Dashboard() {
   });
 
   const fetchProducts = async () => {
+    if (!company) return;
     try {
-      const res = await api.get('/products');
+      const res = await api.get('/products', { params: { companyId: company.id } });
       setProducts(res.data);
     } catch (error) {
       console.error('Failed to fetch products', error);
@@ -85,8 +94,9 @@ export default function Dashboard() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
 
   const fetchOrders = async () => {
+    if (!company) return;
     try {
-      const res = await api.get('/orders');
+      const res = await api.get('/orders', { params: { companyId: company.id } });
       setOrders(res.data);
     } catch (error) {
       console.error('Failed to fetch orders', error);
@@ -107,8 +117,9 @@ export default function Dashboard() {
   const [financeSummary, setFinanceSummary] = useState<any>({ totalReceivable: 0, recentMoves: [] });
 
   const fetchFinance = async () => {
+    if (!company) return;
     try {
-      const res = await api.get('/finance/summary');
+      const res = await api.get('/finance/summary', { params: { companyId: company.id } });
       setFinanceSummary(res.data);
     } catch (error) {
       console.error('Failed to fetch finance', error);
@@ -142,12 +153,10 @@ export default function Dashboard() {
   const [configLoading, setConfigLoading] = useState(false);
 
   const fetchConfig = async () => {
+    if (!company) return;
     try {
-      // Pega o primeiro registro de empresa (ou você pode filtrar pelo ID do usuário logado no futuro)
-      const res = await api.get('/company/setup/current');
-      if (res.data) {
-        setCompanyConfig(res.data);
-      }
+      const res = await api.get('/company/setup/current', { params: { companyId: company.id } });
+      if (res.data) setCompanyConfig(res.data);
     } catch (error) {
       console.error('Failed to fetch config', error);
     }
@@ -238,7 +247,35 @@ export default function Dashboard() {
   }, [activeTab]);
 
   const handleLogout = () => {
-    navigate('/login');
+    logout();
+  };
+
+  const handleSaveSettings = async () => {
+    if (!company) return;
+    try {
+      setConfigLoading(true);
+      const formData = new FormData();
+      formData.append('companyId', company.id);
+      Object.keys(companyConfig).forEach(key => {
+        if (companyConfig[key] !== undefined && companyConfig[key] !== null) {
+          formData.append(key, String(companyConfig[key]));
+        }
+      });
+      if (selectedFile) {
+        formData.append('certificado', selectedFile);
+      }
+
+      await api.post('/company/setup', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert('Configurações salvas com sucesso!');
+      // Atualiza o contexto da empresa se necessário
+    } catch (error) {
+      console.error('Erro ao salvar configurações', error);
+      alert('Erro ao salvar configurações. Verifique os dados e tente novamente.');
+    } finally {
+      setConfigLoading(false);
+    }
   };
 
   return (
@@ -255,77 +292,70 @@ export default function Dashboard() {
           </button>
         </div>
 
-        <nav className="sidebar-nav" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 150px)', paddingRight: '5px' }}>
-          {/* Categoria: Operacional */}
-          <div className="nav-group">
-            {sidebarOpen && <span className="nav-group-label">Operacional</span>}
-            <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-              <LayoutDashboard size={20} />
-              {sidebarOpen && <span>Início / Painel</span>}
+        <nav className="sidebar-nav">
+          <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+            <PieChart size={20} /> <span>Início / Painel</span>
+          </button>
+          
+          {hasPermission('sales') && (
+            <button className={`nav-item ${activeTab === 'sales' ? 'active' : ''}`} onClick={() => setActiveTab('sales')}>
+              <ShoppingCart size={20} /> <span>Vendas / Orçamentos</span>
             </button>
-            {hasPermission('sales') && (
-              <button className={`nav-item ${activeTab === 'sales' ? 'active' : ''}`} onClick={() => setActiveTab('sales')}>
-                <ShoppingCart size={20} />
-                {sidebarOpen && <span>Vendas & PDV</span>}
-              </button>
-            )}
-            {hasPermission('fiscal') && (
-              <button className={`nav-item ${activeTab === 'fiscal' ? 'active' : ''}`} onClick={() => setActiveTab('fiscal')}>
-                <ReceiptText size={20} />
-                {sidebarOpen && <span>Notas Fiscais</span>}
-              </button>
-            )}
-            {hasPermission('inbound') && (
-              <button className={`nav-item ${activeTab === 'recebimentos' ? 'active' : ''}`} onClick={() => setActiveTab('recebimentos')}>
-                <Inbox size={20} />
-                {sidebarOpen && <span>Recebimentos</span>}
-              </button>
-            )}
-          </div>
+          )}
 
-          <div className="nav-divider" style={{ margin: '1rem 0' }}></div>
+          {hasPermission('fiscal') && (
+            <button className={`nav-item ${activeTab === 'fiscal' ? 'active' : ''}`} onClick={() => setActiveTab('fiscal')}>
+              <FileText size={20} /> <span>Fiscal (NF-e/NFC-e)</span>
+            </button>
+          )}
 
-          {/* Categoria: Gestão */}
-          <div className="nav-group">
-            {sidebarOpen && <span className="nav-group-label">Gestão</span>}
-            {hasPermission('stock') && (
-              <button className={`nav-item ${activeTab === 'products' ? 'active' : ''}`} onClick={() => setActiveTab('products')}>
-                <Package size={20} />
-                {sidebarOpen && <span>Estoque / Prod</span>}
-              </button>
-            )}
-            {hasPermission('finance') && (
-              <button className={`nav-item ${activeTab === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveTab('financeiro')}>
-                <Wallet size={20} />
-                {sidebarOpen && <span>Financeiro</span>}
-              </button>
-            )}
-            {hasPermission('customers') && (
-              <button className={`nav-item ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}>
-                <Users size={20} />
-                {sidebarOpen && <span>Clientes</span>}
-              </button>
-            )}
-          </div>
+          {hasPermission('inbound') && (
+            <button className={`nav-item ${activeTab === 'entrada' ? 'active' : ''}`} onClick={() => setActiveTab('entrada')}>
+              <FileDown size={20} /> <span>Entrada (XML)</span>
+            </button>
+          )}
 
-          <div className="nav-divider" style={{ margin: '1rem 0' }}></div>
+          {hasPermission('stock') && (
+            <button className={`nav-item ${activeTab === 'products' ? 'active' : ''}`} onClick={() => setActiveTab('products')}>
+              <Package size={20} /> <span>Estoque / Produtos</span>
+            </button>
+          )}
 
-          {/* Categoria: Configuração */}
-          <div className="nav-group">
-            {sidebarOpen && <span className="nav-group-label">Sistema</span>}
-            {hasPermission('users') && (
-              <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
-                <UserCheck size={20} />
-                {sidebarOpen && <span>Funcionários</span>}
-              </button>
-            )}
-            {hasPermission('settings') && (
-              <button className={`nav-item ${activeTab === 'config' ? 'active' : ''}`} onClick={() => setActiveTab('config')}>
-                <Settings size={20} />
-                {sidebarOpen && <span>Configurações</span>}
-              </button>
-            )}
-          </div>
+          {hasPermission('finance') && (
+            <button className={`nav-item ${activeTab === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveTab('financeiro')}>
+              <Wallet size={20} /> <span>Financeiro (Contas)</span>
+            </button>
+          )}
+
+          {hasPermission('customers') && (
+            <button className={`nav-item ${activeTab === 'customers' ? 'active' : ''}`} onClick={() => setActiveTab('customers')}>
+              <Users size={20} /> <span>Clientes / Fornec.</span>
+            </button>
+          )}
+
+          {hasPermission('reports') && (
+            <button className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
+              <BarChart3 size={20} /> <span>Relatórios / BI</span>
+            </button>
+          )}
+
+          {hasPermission('users') && (
+            <button className={`nav-item ${activeTab === 'usuarios' ? 'active' : ''}`} onClick={() => setActiveTab('usuarios')}>
+              <Shield size={20} /> <span>Gerenciar Equipe</span>
+            </button>
+          )}
+
+          {user?.role === 'OWNER' && (
+            <button className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} 
+              style={{ marginTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}
+              onClick={() => setActiveTab('admin')}>
+              <ShieldCheck size={20} color="var(--accent-primary)" /> <span>ADMIN MASTER</span>
+            </button>
+          )}
+          
+          <button className={`nav-item ${activeTab === 'config' ? 'active' : ''}`} onClick={() => setActiveTab('config')}>
+            <Settings size={20} /> <span>Configurações</span>
+          </button>
         </nav>
 
         <div className="sidebar-footer">
@@ -339,12 +369,15 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="main-content">
         <header className="content-header glass-panel">
-          <h1>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h1>
+          <div className="header-title">
+            <h1>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h1>
+            {isExpired && <span className="badge-error" style={{ marginLeft: '1rem', fontSize: '0.7rem' }}>LICENÇA VENCIDA - Regularize seu acesso</span>}
+          </div>
           <div className="user-profile">
-            <div className="avatar">A</div>
+            <div className="avatar">{user?.name?.charAt(0) || 'U'}</div>
             <div className="user-info">
-              <span className="user-name">Admin</span>
-              <span className="company-name">Sua Empresa LTDA</span>
+              <span className="user-name">{user?.name}</span>
+              <span className="company-name">{company?.razaoSocial || 'NFERIO ERP'}</span>
             </div>
           </div>
         </header>
@@ -352,22 +385,22 @@ export default function Dashboard() {
         <div className="content-area animate-fade-in">
           {activeTab === 'dashboard' && (
             <div className="module-container animate-fade-in">
-              <div className="stats-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+              <div className="stats-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                 <div className="stat-card glass-panel">
-                  <h3>Vendas Hoje</h3>
-                  <p className="stat-value">R$ 4.250,00</p>
+                  <h3>Receitas (Mês)</h3>
+                  <p className="stat-value text-success">
+                    {financeSummary.totalReceivable?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'}
+                  </p>
                 </div>
                 <div className="stat-card glass-panel">
                   <h3>NFe Emitidas</h3>
-                  <p className="stat-value">12</p>
+                  <p className="stat-value">{orders.filter(o => o.status === 'FATURADO').length}</p>
                 </div>
                 <div className="stat-card glass-panel">
-                  <h3>Recebimentos</h3>
-                  <p className="stat-value text-accent">R$ 8.900,00</p>
-                </div>
-                <div className="stat-card glass-panel" style={{ borderLeft: '4px solid var(--success)' }}>
-                  <h3>Lucratividade</h3>
-                  <p className="stat-value text-success">32%</p>
+                  <h3>Despesas (Mês)</h3>
+                  <p className="stat-value text-error">
+                    {financeSummary.totalPayable?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'}
+                  </p>
                 </div>
               </div>
 
@@ -677,25 +710,7 @@ export default function Dashboard() {
               <div className="module-header">
                 <h2>Notas Fiscais Recebidas (Entradas)</h2>
                 <div className="header-actions">
-                  <button className="btn-secondary" onClick={() => {
-                    setSelectedNfeData({
-                      nfeNumber: '1254',
-                      nfeKey: '332605...000188',
-                      totalAmount: 15420.00,
-                      supplier: { name: 'DISTRIBUIDORA DE BEBIDAS ALFA', cnpj: '11.222.333/0001-44' },
-                      items: [
-                        { externalName: 'CERVEJA LATA 350ML SKOL', quantity: 100, price: 3.50 },
-                        { externalName: 'REFRIGERANTE COLA 2L', quantity: 50, price: 8.00 }
-                      ],
-                      installments: [
-                        { number: 1, dueDate: '2026-06-06', amount: 7710.00 },
-                        { number: 2, dueDate: '2026-07-06', amount: 7710.00 }
-                      ]
-                    });
-                    setIsNfeEntryOpen(true);
-                  }}>
-                    <ArrowRightLeft size={18} /> Simular Importação NFe
-                  </button>
+                  <span className="text-muted" style={{ fontSize: '0.9rem' }}>Consulte e importe notas de entrada automaticamente</span>
                 </div>
               </div>
 
@@ -872,9 +887,12 @@ export default function Dashboard() {
             );
           })()}
 
-          {activeTab === 'clientes' && <Customers />}
-
+          {activeTab === 'customers' && <Customers />}
           {activeTab === 'financeiro' && <Finance />}
+          {activeTab === 'reports' && <Reports />}
+          {activeTab === 'usuarios' && <Users />}
+          {activeTab === 'entrada' && <Inbound />}
+          {activeTab === 'admin' && <AdminMaster />}
 
           {activeTab === 'config' && (() => {
             const handleSaveConfig = async () => {
@@ -923,14 +941,12 @@ export default function Dashboard() {
             return (
               <div className="module-container animate-fade-in">
                 <div className="module-header">
-                  <h2>Configurações da Empresa e Fiscal (Multi-Tenant)</h2>
-                  <button 
-                    className="btn-primary" 
-                    onClick={handleSaveConfig}
-                    disabled={configLoading}
-                  >
-                    {configLoading ? 'Salvando...' : 'Salvar Alterações'}
-                  </button>
+                  <h2>Configurações da Empresa e Fiscal</h2>
+                  <div className="header-actions">
+                    <button className="btn-primary" onClick={handleSaveSettings} disabled={configLoading}>
+                      <Save size={18} /> {configLoading ? 'Salvando...' : 'Salvar Configurações'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="stats-row" style={{ gridTemplateColumns: '1fr 1fr' }}>

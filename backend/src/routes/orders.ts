@@ -1,17 +1,22 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 
 const router = Router();
 const prisma = new PrismaClient();
 
-// Get all orders
-router.get('/', async (req, res) => {
+/**
+ * Listar pedidos da empresa
+ */
+router.get('/', async (req: Request, res: Response) => {
+  const { companyId } = req.query;
   try {
     const orders = await prisma.order.findMany({
+      where: { companyId: String(companyId) },
       include: {
         items: {
           include: { product: true }
-        }
+        },
+        customer: true
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -21,14 +26,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Create an order or quote
-router.post('/', async (req, res) => {
+/**
+ * Criar um novo pedido ou orçamento
+ */
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { 
-      status, customerName, customerDoc, discount, items, companyId
+      status, customerName, customerDoc, customerId, discount, items, companyId
     } = req.body;
 
-    // Calculate totals
+    if (!companyId) return res.status(400).json({ error: 'Company ID is required' });
+
+    // Calcula totais
     let totalAmount = 0;
     const orderItems = [];
 
@@ -54,19 +63,11 @@ router.post('/', async (req, res) => {
         status: status || 'ORCAMENTO',
         customerName,
         customerDoc,
+        customerId,
         totalAmount,
         discount: discount || 0,
         netAmount,
-        company: {
-          connectOrCreate: {
-            where: { id: companyId || 'default-company-id' },
-            create: {
-              id: companyId || 'default-company-id',
-              cnpj: '00000000000000',
-              razaoSocial: 'Empresa Padrão',
-            }
-          }
-        },
+        companyId: String(companyId),
         items: {
           create: orderItems
         }
@@ -74,7 +75,7 @@ router.post('/', async (req, res) => {
       include: { items: true }
     });
 
-    // If it's a PEDIDO or FATURADO, we need to subtract stock
+    // Se já for PEDIDO ou FATURADO, baixa estoque e gera financeiro
     if (order.status === 'PEDIDO' || order.status === 'FATURADO') {
       for (const item of orderItems) {
         await prisma.product.update({
@@ -84,6 +85,7 @@ router.post('/', async (req, res) => {
         
         await prisma.stockTransaction.create({
           data: {
+            companyId: String(companyId),
             productId: item.productId,
             type: 'OUT',
             quantity: item.quantity,
@@ -91,6 +93,18 @@ router.post('/', async (req, res) => {
           }
         });
       }
+
+      // Criar Conta a Receber
+      await prisma.accountReceivable.create({
+        data: {
+          companyId: String(companyId),
+          orderId: order.id,
+          description: `Venda - Pedido #${order.orderNumber}`,
+          amount: netAmount,
+          status: 'PENDENTE', // Pode ser alterado para PAGO se houver integração com caixa
+          dueDate: new Date()
+        }
+      });
     }
 
     res.status(201).json(order);
@@ -100,8 +114,10 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Convert Quote to Order
-router.post('/:id/convert', async (req, res) => {
+/**
+ * Converter Orçamento em Pedido (Efetivar Venda)
+ */
+router.post('/:id/convert', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
@@ -113,12 +129,13 @@ router.post('/:id/convert', async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
     if (order.status !== 'ORCAMENTO') return res.status(400).json({ error: 'Apenas orçamentos podem ser convertidos' });
 
-    // Update status and subtract stock
+    // Atualiza status
     const updatedOrder = await prisma.order.update({
       where: { id },
       data: { status: 'PEDIDO' }
     });
 
+    // Baixa estoque e gera financeiro na conversão
     for (const item of order.items) {
       await prisma.product.update({
         where: { id: item.productId },
@@ -127,13 +144,25 @@ router.post('/:id/convert', async (req, res) => {
       
       await prisma.stockTransaction.create({
         data: {
+          companyId: order.companyId,
           productId: item.productId,
           type: 'OUT',
           quantity: item.quantity,
-          reason: `Conversão de Orçamento - Pedido #${order.orderNumber}`
+          reason: `Conversão - Pedido #${order.orderNumber}`
         }
       });
     }
+
+    await prisma.accountReceivable.create({
+      data: {
+        companyId: order.companyId,
+        orderId: order.id,
+        description: `Venda (Conversão) - Pedido #${order.orderNumber}`,
+        amount: order.netAmount,
+        status: 'PENDENTE',
+        dueDate: new Date()
+      }
+    });
 
     res.json(updatedOrder);
   } catch (error) {

@@ -1,14 +1,19 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 
 const router = Router();
 const prisma = new PrismaClient();
 
-// Get all products (Mocking companyId for now until auth is fully implemented)
-router.get('/', async (req, res) => {
+/**
+ * Listar produtos da empresa
+ */
+router.get('/', async (req: Request, res: Response) => {
+  const { companyId } = req.query;
   try {
     const products = await prisma.product.findMany({
-      include: { category: true }
+      where: { companyId: String(companyId) },
+      include: { category: true },
+      orderBy: { name: 'asc' }
     });
     res.json(products);
   } catch (error) {
@@ -16,37 +21,41 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Create product
-router.post('/', async (req, res) => {
+/**
+ * Criar novo produto
+ */
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { 
       name, sku, barcode, price, costPrice, stock, unit, 
       ncm, cest, cfopPadrao, origem, categoryId, companyId 
     } = req.body;
 
+    if (!companyId) return res.status(400).json({ error: 'Company ID is required' });
+
     const product = await prisma.product.create({
       data: {
-        name, sku, barcode, price: Number(price), costPrice: Number(costPrice), 
-        stock: Number(stock), unit, ncm, cest, cfopPadrao, origem,
+        name, 
+        sku, 
+        barcode, 
+        price: Number(price), 
+        costPrice: Number(costPrice || 0), 
+        stock: Number(stock || 0), 
+        unit: unit || 'UN', 
+        ncm, 
+        cest, 
+        cfopPadrao, 
+        origem: origem || '0',
         categoryId,
-        // Mock company for now if not provided
-        company: {
-          connectOrCreate: {
-            where: { id: companyId || 'default-company-id' },
-            create: {
-              id: companyId || 'default-company-id',
-              cnpj: '00000000000000',
-              razaoSocial: 'Empresa Padrão',
-            }
-          }
-        }
+        companyId: String(companyId)
       }
     });
 
-    // If initial stock is provided, create a stock transaction
+    // Se houver estoque inicial, registra transação
     if (Number(stock) > 0) {
       await prisma.stockTransaction.create({
         data: {
+          companyId: String(companyId),
           productId: product.id,
           type: 'IN',
           quantity: Number(stock),
@@ -62,30 +71,33 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Add stock movement
-router.post('/:id/stock', async (req, res) => {
+/**
+ * Movimentar estoque (Entrada/Saída rápida)
+ */
+router.post('/:id/stock', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { type, quantity, reason } = req.body;
+    const { type, quantity, reason, companyId } = req.body;
 
     const qty = Number(quantity);
     if (qty <= 0) return res.status(400).json({ error: 'Quantidade inválida' });
 
-    // Update product stock
+    // Atualiza saldo
     const product = await prisma.product.update({
       where: { id },
       data: {
         stock: {
-          [type === 'IN' ? 'increment' : 'decrement']: qty
+          [type === 'ADD' || type === 'IN' ? 'increment' : 'decrement']: qty
         }
       }
     });
 
-    // Register transaction
+    // Registra transação
     const transaction = await prisma.stockTransaction.create({
       data: {
+        companyId: String(companyId || product.companyId),
         productId: id,
-        type,
+        type: (type === 'ADD' || type === 'IN') ? 'IN' : 'OUT',
         quantity: qty,
         reason
       }
@@ -94,20 +106,6 @@ router.post('/:id/stock', async (req, res) => {
     res.status(201).json({ product, transaction });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao movimentar estoque' });
-  }
-});
-
-// Get stock movements
-router.get('/:id/stock', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const transactions = await prisma.stockTransaction.findMany({
-      where: { productId: id },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(transactions);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar movimentações' });
   }
 });
 

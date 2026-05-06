@@ -1,17 +1,29 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogIn, Receipt } from 'lucide-react';
+import { LogIn, Receipt, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import './Auth.css';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate login for now
-    navigate('/dashboard');
+    setLoading(true);
+    setError('');
+    try {
+      await login(email, password);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erro ao realizar login');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -31,6 +43,7 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleLogin} className="auth-form">
+          {error && <div className="error-alert" style={{ color: 'var(--error)', marginBottom: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>{error}</div>}
           <div className="form-group">
             <label htmlFor="email">Email Corporativo</label>
             <input
@@ -57,9 +70,9 @@ export default function Login() {
             />
           </div>
 
-          <button type="submit" className="btn-primary auth-submit">
-            <LogIn size={20} />
-            Entrar no Sistema
+          <button type="submit" className="btn-primary auth-submit" disabled={loading}>
+            {loading ? <Loader2 size={20} className="animate-spin" /> : <LogIn size={20} />}
+            {loading ? 'Autenticando...' : 'Entrar no Sistema'}
           </button>
         </form>
 

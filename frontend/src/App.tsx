@@ -1,4 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -10,18 +12,47 @@ import Finance from './pages/Finance';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/pdv" element={<Pdv />} />
-        <Route path="/master" element={<AdminMaster />} />
-        <Route path="/customers" element={<Customers />} />
-        <Route path="/finance" element={<Finance />} />
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          {/* Rotas Públicas */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          
+          {/* Rotas Protegidas */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/pdv" element={
+            <ProtectedRoute requiredPermission="sales">
+              <Pdv />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/finance" element={
+            <ProtectedRoute requiredPermission="finance">
+              <Finance />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/customers" element={
+            <ProtectedRoute requiredPermission="customers">
+              <Customers />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/master" element={
+            <ProtectedRoute requiredPermission="master">
+              <AdminMaster />
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 
