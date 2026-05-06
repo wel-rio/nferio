@@ -16,7 +16,8 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "koffi": "^2.9.27"
+    "koffi": "^2.9.27",
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -7,6 +7,7 @@ import fiscalRoutes from './routes/fiscal';
 import userRoutes from './routes/users';
 import financeRoutes from './routes/finance';
 import configRoutes from './routes/config';
+import companyRoutes from './routes/company';
 
 import { acbrService } from './services/acbrService';
 
@@ -28,6 +29,7 @@ app.use('/api/fiscal', fiscalRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/company', companyRoutes);
 
 // Inicializa a ACBrLib ao subir o servidor
 acbrService.checkEnvironment().then(ready => {
