@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, FileDown, Search, Check, AlertTriangle } from 'lucide-react';
-import api from '../services/api';
+import api, { fiscalApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 interface NFeEntryModalProps {
@@ -35,7 +35,7 @@ export default function NFeEntryModal({ onClose, onSuccess }: NFeEntryModalProps
           // Aqui poderíamos parsear o XML no frontend se necessário
           // Mas vamos enviar para a rota que processa a entrada
           
-          await api.post('/fiscal/process-entry', {
+          await fiscalApi.post('/fiscal/process-entry', {
             xmlContent: content,
             companyId: company.id
           });

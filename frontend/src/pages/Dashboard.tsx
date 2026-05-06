@@ -21,7 +21,7 @@ import {
   FileDown
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import api, { fiscalApi } from '../services/api';
 import ProductModal from '../components/ProductModal';
 import StockAdjustmentModal from '../components/StockAdjustmentModal';
 import OrderModal from '../components/OrderModal';
@@ -612,7 +612,7 @@ export default function Dashboard() {
                                       } else {
                                         // 2b. Se for WEB, envia para o BACKEND processar com o ACBr do servidor
                                         try {
-                                          const res = await api.post('/fiscal/emit-acbr', { orderId: order.id });
+                                          const res = await fiscalApi.post('/fiscal/emit-acbr', { orderId: order.id });
                                           alert(`Nota Autorizada via SERVIDOR ACBrLib! Chave: ${res.data.chave}`);
                                           fetchOrders();
                                         } catch (e) {
