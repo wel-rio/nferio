@@ -1,55 +1,48 @@
-import { exec } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 
 /**
- * Serviço para interfacear com a ACBrLib (DLL) no SERVIDOR (Opção 2)
+ * Serviço para interfacear com a ACBrLib
  */
 export const acbrService = {
-  // Configuração automática: DLL para Windows, .SO para Linux (Hostinger)
-  dllPath: process.platform === 'win32' ? 'ACBrNFe64.dll' : 'libacbrnfe64.so',
+  // Caminho da biblioteca: Detecta se é Windows (Local) ou Linux (Oracle VPS)
+  dllPath: process.platform === 'win32' 
+    ? path.resolve(__dirname, '../../acbr/lib/ACBrNFe64.dll')
+    : '/home/ubuntu/nferio/backend/acbr/lib/libacbrnfe64.so',
+
+  // Caminho do arquivo de configuração
+  iniPath: process.platform === 'win32'
+    ? path.resolve(__dirname, '../../acbr/acbrlib.ini')
+    : '/home/ubuntu/nferio/backend/acbr/acbrlib.ini',
 
   /**
-   * NOTA PARA HOSTINGER LINUX:
-   * No Linux, você precisará instalar as dependências via terminal:
-   * sudo apt-get install libxml2 openssl libxmlsec1
+   * Valida se os arquivos necessários existem no ambiente atual
    */
-    return new Promise((resolve, reject) => {
-      try {
-        /**
-         * Em produção no seu Windows VPS, você instalaria: npm install ffi-napi ref-napi
-         * 
-         * Exemplo de inicialização:
-         * const ffi = require('ffi-napi');
-         * const lib = ffi.Library(this.dllPath, {
-         *   'NFE_Inicializar': ['int', ['string', 'string']],
-         *   'NFE_CarregarINI': ['int', ['string']],
-         *   'NFE_Enviar': ['int', ['int', 'bool', 'bool', 'bool']]
-         * });
-         */
+  async checkEnvironment() {
+    console.log(`🔍 Verificando ambiente: ${process.platform}`);
+    const exists = fs.existsSync(this.dllPath);
+    if (!exists) {
+      console.warn(`⚠️ Aviso: Biblioteca não encontrada em ${this.dllPath}`);
+      return false;
+    }
+    return true;
+  },
 
-        console.log('Iniciando Emissão Centralizada via ACBrLib no Servidor...');
-        
-        // Simulação do fluxo ACBrLib:
-        // 1. NFE_Inicializar(caminhoConfig, senha)
-        // 2. NFE_CarregarINI(txtContent)
-        // 3. NFE_Assinar()
-        // 4. NFE_Validar()
-        // 5. NFE_Enviar(lote, imprimir, sincrono)
-
-        setTimeout(() => {
-          resolve({
-            success: true,
-            status: 'Autorizada pelo Servidor',
-            chave: '352405' + Math.random().toString().slice(2, 12),
-            xml: '<?xml ... ?>',
-            protocolo: '135240001234567'
-          });
-        }, 2000);
-      } catch (error) {
-        reject(error);
-      }
+  /**
+   * Simulação de emissão para testes iniciais
+   */
+  async emitirNFe(dados: any): Promise<any> {
+    return new Promise((resolve) => {
+      console.log('🚀 Iniciando processo de emissão fiscal...');
+      
+      setTimeout(() => {
+        resolve({
+          success: true,
+          status: 'Simulação: Pronto para emissão',
+          ambiente: process.platform,
+          timestamp: new Date().toISOString()
+        });
+      }, 1000);
     });
   }
 };
-

@@ -107,7 +107,7 @@ model StockTransaction {
 
 model Order {
   id            String   @id @default(uuid())
-  orderNumber   Int      @unique
+  orderNumber   Int      @unique @default(autoincrement())
   status        String   @default("ORCAMENTO") // ORCAMENTO, PEDIDO, FATURADO, CANCELADO
   customerName  String?
   customerDoc   String?  // CPF/CNPJ
