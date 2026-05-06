@@ -2,12 +2,11 @@ import axios from 'axios';
 
 // URL do Backend - Altere para a URL da Cloudflare quando publicar
 // URL do Backend Fiscal (VPS via Túnel Seguro)
-// URL do Backend Fiscal (VPS) - COLE AQUI O ENDEREÇO QUE APARECE NO TERMINAL DA VPS
-export const FISCAL_URL = 'https://SUA-URL-DO-TUNEL.trycloudflare.com/api';
+// URL do Backend Fiscal (VPS) - Apenas para a parte fiscal
+export const FISCAL_URL = 'https://nferio-fiscal.trycloudflare.com/api';
 
-// URL da API Geral: No Cloudflare é relativo, no localhost usamos a produção para testes
-const isLocal = window.location.hostname === 'localhost';
-const API_URL = isLocal ? 'https://nferio.pages.dev/api' : '/api';
+// No Cloudflare usamos caminhos relativos para as Functions
+const API_URL = '/api';
 
 const api = axios.create({
   baseURL: API_URL,
