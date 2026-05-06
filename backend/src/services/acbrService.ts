@@ -104,12 +104,19 @@ export const acbrService = {
     this.private.functions.NFE_ConfigGravarValor("DFe", "SSLHttpLib", "3");
     this.private.functions.NFE_ConfigGravarValor("DFe", "SSLXmlSignLib", "4");
 
-    // Certificado
-    if (company.certificadoPath) {
+    // Certificado (Prioriza o que está na pastinha da empresa na VPS)
+    const companyId = company.id || company.companyId || 'default';
+    const fixedCertPath = path.join(process.cwd(), 'acbr', 'certs', companyId, 'cert.pfx');
+    
+    if (fs.existsSync(fixedCertPath)) {
+      console.log(`📄 Usando certificado da empresa ${companyId}: ${fixedCertPath}`);
+      this.private.functions.NFE_ConfigGravarValor("DFe", "ArquivoPFX", fixedCertPath);
+    } else if (company.certificadoPath) {
       this.private.functions.NFE_ConfigGravarValor("DFe", "ArquivoPFX", company.certificadoPath);
     }
-    if (company.certificadoSenha) {
-      this.private.functions.NFE_ConfigGravarValor("DFe", "Senha", company.certificadoSenha);
+
+    if (company.senhaCertificado || company.certificadoSenha) {
+      this.private.functions.NFE_ConfigGravarValor("DFe", "Senha", company.senhaCertificado || company.certificadoSenha);
     }
 
     // Ambiente (1=Produção, 2=Homologação)
@@ -198,6 +205,18 @@ export const acbrService = {
       };
     } catch (error: any) {
       return { success: false, error: error.message };
+    }
+  async getCertDate(company: any): Promise<string> {
+    try {
+      await this.configurarEmpresa(company);
+      const buffer = Buffer.alloc(256);
+      const size = new Int32Array([256]);
+      const res = this.private.functions.NFE_ObterCertificadoDataVencimento(buffer, size);
+      
+      if (res !== 0) return "Erro ao ler data";
+      return buffer.toString('utf8').replace(/\0/g, '').trim();
+    } catch (error) {
+      return "Indisponível";
     }
   }
 };

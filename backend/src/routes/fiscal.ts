@@ -4,17 +4,17 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 
-// Configuração de Upload de Certificado
+// Configuração de Upload de Certificado (Multi-empresa)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const certDir = path.join(process.cwd(), 'acbr', 'certs');
+    const companyId = req.body.companyId || 'default';
+    const certDir = path.join(process.cwd(), 'acbr', 'certs', companyId);
     if (!fs.existsSync(certDir)) {
       fs.mkdirSync(certDir, { recursive: true });
     }
     cb(null, certDir);
   },
   filename: (req, file, cb) => {
-    // Salva sempre como cert.pfx para simplificar o motor
     cb(null, 'cert.pfx');
   }
 });
@@ -87,19 +87,23 @@ router.get('/test-acbr', async (req, res) => {
   }
 });
 
-// Configuração da Empresa e Certificado (Persistência Local para ACBr)
+// Configuração da Empresa e Certificado (Persistência Local por Empresa)
 router.post('/company/setup', upload.single('certificado'), async (req, res) => {
   try {
     const config = req.body;
-    const configPath = path.join(process.cwd(), 'acbr', 'config.json');
+    const companyId = config.companyId || config.id;
+    
+    if (!companyId) return res.status(400).json({ error: "companyId é obrigatório" });
 
-    // Salva as configurações em um JSON local na VPS
-    // Isso mantém o serviço stateless em relação ao DB principal, mas persistente localmente para o motor
+    const configDir = path.join(process.cwd(), 'acbr', 'config', companyId);
+    if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
+    
+    const configPath = path.join(configDir, 'config.json');
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
     res.json({ 
       success: true, 
-      message: "Configurações e Certificado salvos com sucesso na VPS!",
+      message: `Configurações da empresa ${companyId} salvas na VPS!`,
       certPath: req.file ? req.file.path : 'mantido'
     });
   } catch (error: any) {
@@ -108,18 +112,45 @@ router.post('/company/setup', upload.single('certificado'), async (req, res) => 
   }
 });
 
-// Buscar Configuração Atual da VPS
+// Buscar Configuração Atual de uma empresa específica
 router.get('/company/setup/current', async (req, res) => {
   try {
-    const configPath = path.join(process.cwd(), 'acbr', 'config.json');
+    const { companyId } = req.query;
+    if (!companyId) return res.status(400).json({ error: "companyId é obrigatório" });
+
+    const configPath = path.join(process.cwd(), 'acbr', 'config', String(companyId), 'config.json');
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
       res.json(config);
     } else {
-      res.status(404).json({ message: "Nenhuma configuração encontrada na VPS" });
+      res.status(404).json({ message: "Configuração não encontrada para esta empresa" });
     }
   } catch (error) {
     res.status(500).json({ message: "Erro ao ler configurações" });
+  }
+});
+
+// Buscar informações do certificado
+router.get('/company/cert-info', async (req, res) => {
+  try {
+    const { companyId, senhaCertificado } = req.query;
+    if (!companyId) return res.status(400).json({ error: "companyId é obrigatório" });
+
+    const configPath = path.join(process.cwd(), 'acbr', 'config', String(companyId), 'config.json');
+    let config = {};
+    if (fs.existsSync(configPath)) {
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+
+    // Tenta ler a data de vencimento
+    const vencimento = await acbrService.getCertDate({ 
+      id: companyId, 
+      senhaCertificado: senhaCertificado || (config as any).senhaCertificado 
+    });
+
+    res.json({ vencimento });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 

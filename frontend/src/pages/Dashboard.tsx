@@ -154,11 +154,18 @@ export default function Dashboard() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [configLoading, setConfigLoading] = useState(false);
 
+  const [certExpiration, setCertExpiration] = useState<string>('');
+
   const fetchConfig = async () => {
     if (!company) return;
     try {
       const res = await fiscalApi.get('/company/setup/current', { params: { companyId: company.id } });
-      if (res.data) setCompanyConfig(res.data);
+      if (res.data) {
+        setCompanyConfig(res.data);
+        // Busca data de vencimento
+        const certRes = await fiscalApi.get('/company/cert-info', { params: { companyId: company.id } });
+        setCertExpiration(certRes.data.vencimento);
+      }
     } catch (error) {
       console.error('Failed to fetch config from VPS', error);
     }
@@ -967,16 +974,22 @@ export default function Dashboard() {
                         )}
                       </div>
 
-                      <div className="form-group">
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
                         <label>Senha do Certificado</label>
-                        <input 
-                          type="password" 
-                          className="glass-input" 
-                          placeholder="Digite a senha do certificado"
-                          value={companyConfig.senhaCertificado || ''} 
-                          onChange={(e) => setCompanyConfig({...companyConfig, senhaCertificado: e.target.value})} 
-                        />
+                        <input type="password" name="password" className="glass-input" 
+                          value={companyConfig.senhaCertificado} 
+                          onChange={(e) => setCompanyConfig({...companyConfig, senhaCertificado: e.target.value})} />
                       </div>
+
+                      {certExpiration && (
+                        <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                          <div className="glass-panel" style={{ padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <p style={{ margin: 0, fontSize: '0.85rem' }}>
+                              🗓️ <strong>Vencimento do Certificado:</strong> <span style={{ color: '#fbbf24' }}>{certExpiration}</span>
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       <div style={{ padding: '1rem', background: 'rgba(245, 158, 11, 0.05)', borderRadius: '8px', border: '1px solid var(--warning)' }}>
                         <p style={{ fontSize: '0.8rem', color: 'var(--warning)' }}>
