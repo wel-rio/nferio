@@ -36,6 +36,22 @@ router.post('/emit-acbr', async (req, res) => {
   }
 });
 
+// Rota de Teste Rápido (Acessível via Navegador)
+router.get('/test-acbr', async (req, res) => {
+  try {
+    const versao = await acbrService.getVersao();
+    res.json({
+      success: true,
+      mensagem: "Conexão com ACBrLib estabelecida!",
+      versao: versao,
+      ambiente: process.platform,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Erro ao comunicar com ACBrLib', message: error.message });
+  }
+});
+
 // Mock emission for NFe/NFCe
 router.post('/emit', async (req, res) => {
   try {
