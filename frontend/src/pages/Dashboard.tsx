@@ -10,21 +10,38 @@ import {
   X,
   ArrowRightLeft,
   Inbox,
+  UserCheck,
+  Plus,
   Users,
   Wallet
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ProductModal from '../components/ProductModal';
-import StockModal from '../components/StockModal';
+import StockAdjustmentModal from '../components/StockAdjustmentModal';
 import OrderModal from '../components/OrderModal';
 import UserModal from '../components/UserModal';
+import NFeEntryModal from '../components/NFeEntryModal';
+import Customers from './Customers';
+import Finance from './Finance';
 import './Dashboard.css';
 
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const navigate = useNavigate();
+  
+  // Dados do usuário (em produção viria do seu login/JWT)
+  const [user] = useState({
+    name: 'Admin Master',
+    role: 'ADMIN',
+    permissions: 'all'
+  });
+
+  const hasPermission = (slug: string) => {
+    if (user.role === 'ADMIN' || user.permissions === 'all') return true;
+    return user.permissions.split(',').includes(slug);
+  };
 
   // Products State
   const [products, setProducts] = useState<any[]>([]);
@@ -33,6 +50,9 @@ export default function Dashboard() {
   // Users State
   const [users, setUsers] = useState<any[]>([]);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+
+  const [isNfeEntryOpen, setIsNfeEntryOpen] = useState(false);
+  const [selectedNfeData, setSelectedNfeData] = useState<any>(null);
 
   const fetchUsers = async () => {
     try {
@@ -44,10 +64,11 @@ export default function Dashboard() {
   };
   
   // Stock Modal State
-  const [stockModalData, setStockModalData] = useState<{ isOpen: boolean, productId: string, productName: string }>({
+  const [stockModalData, setStockModalData] = useState<{ isOpen: boolean, productId: string, productName: string, currentStock: number }>({
     isOpen: false,
     productId: '',
-    productName: ''
+    productName: '',
+    currentStock: 0
   });
 
   const fetchProducts = async () => {
@@ -95,14 +116,109 @@ export default function Dashboard() {
   };
 
   // Config State
-  const [companyConfig, setCompanyConfig] = useState<any>(null);
+  const [companyConfig, setCompanyConfig] = useState<any>({
+    razaoSocial: '',
+    cnpj: '',
+    inscricaoEstadual: '',
+    municipio: '',
+    uf: 'RJ',
+    codigoIbge: '',
+    crt: '1',
+    ambiente: '2',
+    senhaCertificado: '',
+    logradouro: '',
+    numero: '',
+    bairro: '',
+    cep: '',
+    telefone: '',
+    cscId: '',
+    cscKey: '',
+    nfeSerie: 1,
+    nfeNextNumber: 1,
+    nfceSerie: 1,
+    nfceNextNumber: 1
+  });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [configLoading, setConfigLoading] = useState(false);
 
   const fetchConfig = async () => {
     try {
-      const res = await axios.get('http://localhost:3333/api/config');
-      setCompanyConfig(res.data);
+      // Pega o primeiro registro de empresa (ou você pode filtrar pelo ID do usuário logado no futuro)
+      const res = await axios.get('http://localhost:3333/api/company/setup/current');
+      if (res.data) {
+        setCompanyConfig(res.data);
+      }
     } catch (error) {
       console.error('Failed to fetch config', error);
+    }
+  };
+
+  const consultarCNPJ = async (cnpj: string) => {
+    const cleanCnpj = cnpj.replace(/\D/g, '');
+    if (cleanCnpj.length !== 14) {
+      alert('CNPJ inválido para consulta');
+      return;
+    }
+
+    try {
+      setConfigLoading(true);
+      // Tentativa 1: BrasilAPI
+      try {
+        const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+        if (response.ok) {
+          const data = await response.json();
+          setCompanyConfig({
+            ...companyConfig,
+            razaoSocial: data.razao_social || '',
+            cnpj: data.cnpj || cleanCnpj,
+            municipio: data.municipio || '',
+            uf: data.uf || '',
+            codigoIbge: data.codigo_municipio?.toString() || '',
+            logradouro: data.logradouro || '',
+            numero: data.numero || '',
+            bairro: data.bairro || '',
+            cep: data.cep || '',
+            telefone: data.ddd_telefone_1 || ''
+          });
+          alert('Dados consultados com sucesso via BrasilAPI!');
+          return;
+        }
+      } catch (e) {
+        console.warn('BrasilAPI falhou, tentando fallback...');
+      }
+
+      // Tentativa 2: CNPJ.ws (Fallback)
+      const fbResponse = await fetch(`https://publica.cnpj.ws/cnpj/${cleanCnpj}`);
+      if (fbResponse.ok) {
+        const fbData = await fbResponse.json();
+        // Tenta achar a IE do estado, se não achar pega a primeira da lista
+        const ies = fbData.estabelecimento.inscricoes_estaduais || [];
+        const ieData = ies.find((ie: any) => ie.estado.sigla === fbData.estabelecimento.estado.sigla) || ies[0];
+        
+        setCompanyConfig({
+          ...companyConfig,
+          razaoSocial: fbData.razao_social || '',
+          cnpj: fbData.cnpj || cleanCnpj,
+          municipio: fbData.estabelecimento.cidade.nome || '',
+          uf: fbData.estabelecimento.estado.sigla || '',
+          codigoIbge: fbData.estabelecimento.cidade.ibge_id?.toString() || '',
+          logradouro: fbData.estabelecimento.logradouro || '',
+          numero: fbData.estabelecimento.numero || '',
+          bairro: fbData.estabelecimento.bairro || '',
+          cep: fbData.estabelecimento.cep || '',
+          telefone: fbData.estabelecimento.telefone1 || '',
+          inscricaoEstadual: ieData?.inscricao_estadual || ''
+        });
+        alert('Dados e IE consultados via API Secundária!');
+      } else {
+        throw new Error('Todas as APIs de consulta falharam.');
+      }
+
+    } catch (error: any) {
+      console.error('Erro na consulta:', error);
+      alert(`Erro ao consultar CNPJ: ${error.message || 'Verifique sua conexão ou o número do CNPJ.'}`);
+    } finally {
+      setConfigLoading(false);
     }
   };
 
@@ -139,40 +255,77 @@ export default function Dashboard() {
           </button>
         </div>
 
-        <nav className="sidebar-nav">
-          <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-            <LayoutDashboard size={20} />
-            {sidebarOpen && <span>Início</span>}
-          </button>
-          <button className={`nav-item ${activeTab === 'products' ? 'active' : ''}`} onClick={() => setActiveTab('products')}>
-            <Package size={20} />
-            {sidebarOpen && <span>Produtos</span>}
-          </button>
-          <button className={`nav-item ${activeTab === 'sales' ? 'active' : ''}`} onClick={() => setActiveTab('sales')}>
-            <ShoppingCart size={20} />
-            {sidebarOpen && <span>Vendas & PDV</span>}
-          </button>
-          <button className={`nav-item ${activeTab === 'recebimentos' ? 'active' : ''}`} onClick={() => setActiveTab('recebimentos')}>
-            <Inbox size={20} />
-            {sidebarOpen && <span>Recebimentos (Entradas)</span>}
-          </button>
-          <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
-            <Users size={20} />
-            {sidebarOpen && <span>Usuários</span>}
-          </button>
-          <button className={`nav-item ${activeTab === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveTab('financeiro')}>
-            <Wallet size={20} />
-            {sidebarOpen && <span>Financeiro</span>}
-          </button>
-          <button className={`nav-item ${activeTab === 'fiscal' ? 'active' : ''}`} onClick={() => setActiveTab('fiscal')}>
-            <ReceiptText size={20} />
-            {sidebarOpen && <span>Notas Fiscais (Saídas)</span>}
-          </button>
-          <div className="nav-divider"></div>
-          <button className={`nav-item ${activeTab === 'config' ? 'active' : ''}`} onClick={() => setActiveTab('config')}>
-            <Settings size={20} />
-            {sidebarOpen && <span>Configurações</span>}
-          </button>
+        <nav className="sidebar-nav" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 150px)', paddingRight: '5px' }}>
+          {/* Categoria: Operacional */}
+          <div className="nav-group">
+            {sidebarOpen && <span className="nav-group-label">Operacional</span>}
+            <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+              <LayoutDashboard size={20} />
+              {sidebarOpen && <span>Início / Painel</span>}
+            </button>
+            {hasPermission('sales') && (
+              <button className={`nav-item ${activeTab === 'sales' ? 'active' : ''}`} onClick={() => setActiveTab('sales')}>
+                <ShoppingCart size={20} />
+                {sidebarOpen && <span>Vendas & PDV</span>}
+              </button>
+            )}
+            {hasPermission('fiscal') && (
+              <button className={`nav-item ${activeTab === 'fiscal' ? 'active' : ''}`} onClick={() => setActiveTab('fiscal')}>
+                <ReceiptText size={20} />
+                {sidebarOpen && <span>Notas Fiscais</span>}
+              </button>
+            )}
+            {hasPermission('inbound') && (
+              <button className={`nav-item ${activeTab === 'recebimentos' ? 'active' : ''}`} onClick={() => setActiveTab('recebimentos')}>
+                <Inbox size={20} />
+                {sidebarOpen && <span>Recebimentos</span>}
+              </button>
+            )}
+          </div>
+
+          <div className="nav-divider" style={{ margin: '1rem 0' }}></div>
+
+          {/* Categoria: Gestão */}
+          <div className="nav-group">
+            {sidebarOpen && <span className="nav-group-label">Gestão</span>}
+            {hasPermission('stock') && (
+              <button className={`nav-item ${activeTab === 'products' ? 'active' : ''}`} onClick={() => setActiveTab('products')}>
+                <Package size={20} />
+                {sidebarOpen && <span>Estoque / Prod</span>}
+              </button>
+            )}
+            {hasPermission('finance') && (
+              <button className={`nav-item ${activeTab === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveTab('financeiro')}>
+                <Wallet size={20} />
+                {sidebarOpen && <span>Financeiro</span>}
+              </button>
+            )}
+            {hasPermission('customers') && (
+              <button className={`nav-item ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}>
+                <Users size={20} />
+                {sidebarOpen && <span>Clientes</span>}
+              </button>
+            )}
+          </div>
+
+          <div className="nav-divider" style={{ margin: '1rem 0' }}></div>
+
+          {/* Categoria: Configuração */}
+          <div className="nav-group">
+            {sidebarOpen && <span className="nav-group-label">Sistema</span>}
+            {hasPermission('users') && (
+              <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
+                <UserCheck size={20} />
+                {sidebarOpen && <span>Funcionários</span>}
+              </button>
+            )}
+            {hasPermission('settings') && (
+              <button className={`nav-item ${activeTab === 'config' ? 'active' : ''}`} onClick={() => setActiveTab('config')}>
+                <Settings size={20} />
+                {sidebarOpen && <span>Configurações</span>}
+              </button>
+            )}
+          </div>
         </nav>
 
         <div className="sidebar-footer">
@@ -296,7 +449,7 @@ export default function Dashboard() {
                               <button 
                                 className="icon-btn" 
                                 title="Movimentar Estoque"
-                                onClick={() => setStockModalData({ isOpen: true, productId: product.id, productName: product.name })}
+                                onClick={() => setStockModalData({ isOpen: true, productId: product.id, productName: product.name, currentStock: product.stock })}
                               >
                                 <ArrowRightLeft size={18} />
                               </button>
@@ -317,10 +470,11 @@ export default function Dashboard() {
                 )}
                 
                 {stockModalData.isOpen && (
-                  <StockModal 
+                  <StockAdjustmentModal 
                     productId={stockModalData.productId}
                     productName={stockModalData.productName}
-                    onClose={() => setStockModalData({ isOpen: false, productId: '', productName: '' })}
+                    currentStock={stockModalData.currentStock}
+                    onClose={() => setStockModalData({ isOpen: false, productId: '', productName: '', currentStock: 0 })}
                     onSuccess={fetchProducts}
                   />
                 )}
@@ -523,8 +677,24 @@ export default function Dashboard() {
               <div className="module-header">
                 <h2>Notas Fiscais Recebidas (Entradas)</h2>
                 <div className="header-actions">
-                  <button className="btn-secondary">
-                    <ArrowRightLeft size={18} /> Sincronizar Nuvem
+                  <button className="btn-secondary" onClick={() => {
+                    setSelectedNfeData({
+                      nfeNumber: '1254',
+                      nfeKey: '332605...000188',
+                      totalAmount: 15420.00,
+                      supplier: { name: 'DISTRIBUIDORA DE BEBIDAS ALFA', cnpj: '11.222.333/0001-44' },
+                      items: [
+                        { externalName: 'CERVEJA LATA 350ML SKOL', quantity: 100, price: 3.50 },
+                        { externalName: 'REFRIGERANTE COLA 2L', quantity: 50, price: 8.00 }
+                      ],
+                      installments: [
+                        { number: 1, dueDate: '2026-06-06', amount: 7710.00 },
+                        { number: 2, dueDate: '2026-07-06', amount: 7710.00 }
+                      ]
+                    });
+                    setIsNfeEntryOpen(true);
+                  }}>
+                    <ArrowRightLeft size={18} /> Simular Importação NFe
                   </button>
                 </div>
               </div>
@@ -579,8 +749,21 @@ export default function Dashboard() {
                         </td>
                         <td>
                           <div className="flex gap-2">
-                            <button className="icon-btn" title="Manifestar Ciência">
+                            <button className="icon-btn" title="Manifestar Ciência" onClick={() => alert('Ciência da Operação enviada para a SEFAZ!')}>
                               <ReceiptText size={18} />
+                            </button>
+                            <button className="icon-btn" title="Importar (Estoque + Financeiro)" onClick={() => {
+                              setSelectedNfeData({
+                                nfeNumber: nfe.id + '99',
+                                nfeKey: 'KEY' + nfe.cnpj,
+                                totalAmount: nfe.value,
+                                supplier: { name: nfe.emitter, cnpj: nfe.cnpj },
+                                items: [{ externalName: 'PRODUTO FORNECEDOR ' + nfe.id, quantity: 1, price: nfe.value }],
+                                installments: [{ number: 1, dueDate: '2026-06-01', amount: nfe.value }]
+                              });
+                              setIsNfeEntryOpen(true);
+                            }}>
+                              <Plus size={18} color="var(--success)" />
                             </button>
                             <button className="icon-btn" title="Baixar XML">
                               <Inbox size={18} />
@@ -593,6 +776,18 @@ export default function Dashboard() {
                 </table>
               </div>
             </div>
+          )}
+
+          {isNfeEntryOpen && selectedNfeData && (
+            <NFeEntryModal 
+              nfeData={selectedNfeData}
+              onClose={() => setIsNfeEntryOpen(false)}
+              onSuccess={() => {
+                fetchProducts();
+                fetchFinance();
+                alert('Entrada processada com sucesso! Estoque e Financeiro atualizados.');
+              }}
+            />
           )}
 
           {activeTab === 'users' && (() => {
@@ -619,7 +814,7 @@ export default function Dashboard() {
                         <th>Nome</th>
                         <th>E-mail</th>
                         <th>Perfil</th>
-                        <th>Data Cadastro</th>
+                        <th>Telas Autorizadas</th>
                         <th>Ações</th>
                       </tr>
                     </thead>
@@ -632,24 +827,32 @@ export default function Dashboard() {
                           </td>
                         </tr>
                       ) : (
-                        users.map(user => (
-                          <tr key={user.id}>
-                            <td>{user.name}</td>
-                            <td>{user.email}</td>
+                        users.map((u: any) => (
+                          <tr key={u.id}>
+                            <td>{u.name}</td>
+                            <td>{u.email}</td>
                             <td>
                               <span style={{ 
                                 padding: '4px 8px', 
                                 borderRadius: '4px',
-                                background: user.role === 'ADMIN' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                color: user.role === 'ADMIN' ? 'var(--accent-primary)' : 'var(--success)'
+                                background: u.role === 'ADMIN' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                color: u.role === 'ADMIN' ? 'var(--accent-primary)' : 'var(--success)'
                               }}>
-                                {user.role}
+                                {u.role}
                               </span>
                             </td>
-                            <td>{new Date(user.createdAt).toLocaleDateString('pt-BR')}</td>
                             <td>
-                              <button className="icon-btn" title="Editar Permissões">
-                                <Settings size={18} />
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '250px' }}>
+                                {(u.permissions === 'all' ? 'Tudo' : u.permissions || '').split(',').map((p: string) => (
+                                  <span key={p} style={{ fontSize: '0.65rem', padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', textTransform: 'capitalize' }}>
+                                    {p}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td>
+                              <button className="icon-btn" title="Editar">
+                                <Plus size={18} />
                               </button>
                             </td>
                           </tr>
@@ -669,151 +872,248 @@ export default function Dashboard() {
             );
           })()}
 
-          {activeTab === 'financeiro' && (() => {
+          {activeTab === 'clientes' && <Customers />}
+
+          {activeTab === 'financeiro' && <Finance />}
+
+          {activeTab === 'config' && (() => {
+            const handleSaveConfig = async () => {
+              setConfigLoading(true);
+              try {
+                const formData = new FormData();
+                formData.append('companyId', companyConfig.id || '');
+                formData.append('razaoSocial', companyConfig.razaoSocial);
+                formData.append('cnpj', companyConfig.cnpj);
+                formData.append('inscricaoEstadual', companyConfig.inscricaoEstadual);
+                formData.append('municipio', companyConfig.municipio);
+                formData.append('uf', companyConfig.uf);
+                formData.append('codigoIbge', companyConfig.codigoIbge || '');
+                formData.append('crt', companyConfig.crt || '1');
+                formData.append('senhaCertificado', companyConfig.senhaCertificado || '');
+                formData.append('logradouro', companyConfig.logradouro || '');
+                formData.append('numero', companyConfig.numero || '');
+                formData.append('bairro', companyConfig.bairro || '');
+                formData.append('cep', companyConfig.cep || '');
+                formData.append('telefone', companyConfig.telefone || '');
+                formData.append('cscId', companyConfig.cscId || '');
+                formData.append('cscKey', companyConfig.cscKey || '');
+                formData.append('nfeSerie', String(companyConfig.nfeSerie || 1));
+                formData.append('nfeNextNumber', String(companyConfig.nfeNextNumber || 1));
+                formData.append('nfceSerie', String(companyConfig.nfceSerie || 1));
+                formData.append('nfceNextNumber', String(companyConfig.nfceNextNumber || 1));
+                
+                if (selectedFile) {
+                  formData.append('certificado', selectedFile);
+                }
+
+                await axios.post('http://localhost:3333/api/company/setup', formData, {
+                  headers: { 'Content-Type': 'multipart/form-data' }
+                });
+
+                alert('Configurações e Certificado salvos com sucesso!');
+                fetchConfig();
+              } catch (error) {
+                console.error(error);
+                alert('Erro ao salvar configurações');
+              } finally {
+                setConfigLoading(false);
+              }
+            };
+
             return (
               <div className="module-container animate-fade-in">
                 <div className="module-header">
-                  <h2>Gestão Financeira</h2>
-                  <div className="header-actions">
-                    <button className="btn-secondary">
-                      <Wallet size={18} /> Novo Lançamento
-                    </button>
-                  </div>
-                </div>
-
-                <div className="stats-row">
-                  <div className="stat-card glass-panel">
-                    <h3>Contas a Receber (Pendente)</h3>
-                    <p className="stat-value text-accent">
-                      {financeSummary.totalReceivable.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </p>
-                  </div>
-                  <div className="stat-card glass-panel">
-                    <h3>Saldo em Caixa (PDV)</h3>
-                    <p className="stat-value text-success">R$ 1.250,00</p>
-                  </div>
-                </div>
-
-                <div className="table-container glass-panel">
-                  <h3>Fluxo de Caixa Recente (PDV + Retaguarda)</h3>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Data</th>
-                        <th>Operação</th>
-                        <th>Valor</th>
-                        <th>Usuário</th>
-                        <th>Descrição</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {financeSummary.recentMoves.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="empty-state">
-                            <Wallet size={48} className="text-muted" style={{ margin: '0 auto 1rem' }} />
-                            <p>Nenhuma movimentação financeira registrada.</p>
-                          </td>
-                        </tr>
-                      ) : (
-                        financeSummary.recentMoves.map((move: any) => (
-                          <tr key={move.id}>
-                            <td>{new Date(move.createdAt).toLocaleString('pt-BR')}</td>
-                            <td>
-                              <span style={{ 
-                                padding: '4px 8px', 
-                                borderRadius: '4px',
-                                background: move.type === 'IN' || move.type === 'OPEN' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                color: move.type === 'IN' || move.type === 'OPEN' ? 'var(--success)' : 'var(--error)'
-                              }}>
-                                {move.type}
-                              </span>
-                            </td>
-                            <td>{move.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                            <td>{move.user?.name || 'Sistema'}</td>
-                            <td>{move.description || '-'}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })()}
-
-          {activeTab === 'config' && companyConfig && (() => {
-            return (
-              <div className="module-container animate-fade-in">
-                <div className="module-header">
-                  <h2>Configurações da Empresa e Fiscal</h2>
-                  <button className="btn-primary" onClick={async () => {
-                    await axios.post('http://localhost:3333/api/config', companyConfig);
-                    alert('Configurações salvas!');
-                  }}>
-                    Salvar Alterações
+                  <h2>Configurações da Empresa e Fiscal (Multi-Tenant)</h2>
+                  <button 
+                    className="btn-primary" 
+                    onClick={handleSaveConfig}
+                    disabled={configLoading}
+                  >
+                    {configLoading ? 'Salvando...' : 'Salvar Alterações'}
                   </button>
                 </div>
 
-                <div className="stats-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className="stats-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                  {/* Dados da Empresa */}
                   <div className="stat-card glass-panel">
-                    <h3>Dados Empresariais</h3>
-                    <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      <div className="form-group">
-                        <label>Razão Social</label>
+                    <h3>Identificação da Empresa</h3>
+                    <div style={{ marginTop: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label>Razão Social / Nome Fantasia</label>
                         <input type="text" className="glass-input" value={companyConfig.razaoSocial} 
                           onChange={(e) => setCompanyConfig({...companyConfig, razaoSocial: e.target.value})} />
                       </div>
                       <div className="form-group">
                         <label>CNPJ</label>
-                        <input type="text" className="glass-input" value={companyConfig.cnpj} 
-                          onChange={(e) => setCompanyConfig({...companyConfig, cnpj: e.target.value})} />
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <input type="text" className="glass-input" value={companyConfig.cnpj} 
+                            onChange={(e) => setCompanyConfig({...companyConfig, cnpj: e.target.value})} />
+                          <button 
+                            className="btn-secondary" 
+                            style={{ padding: '0 12px' }}
+                            onClick={() => consultarCNPJ(companyConfig.cnpj)}
+                            disabled={configLoading}
+                          >
+                            🔍
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="stat-card glass-panel" style={{ borderLeft: '4px solid var(--accent-primary)' }}>
-                    <h3>Configurações Fiscais (NFe/NFCe)</h3>
-                    <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       <div className="form-group">
-                        <label>Ambiente</label>
-                        <select className="glass-input" value={companyConfig.ambiente}
-                          onChange={(e) => setCompanyConfig({...companyConfig, ambiente: e.target.value})}>
-                          <option value="1">Produção</option>
-                          <option value="2">Homologação (Testes)</option>
+                        <label>Inscrição Estadual</label>
+                        <input type="text" className="glass-input" value={companyConfig.inscricaoEstadual} 
+                          onChange={(e) => setCompanyConfig({...companyConfig, inscricaoEstadual: e.target.value})} />
+                      </div>
+                      <div className="form-group">
+                        <label>Município</label>
+                        <input type="text" className="glass-input" value={companyConfig.municipio} 
+                          onChange={(e) => setCompanyConfig({...companyConfig, municipio: e.target.value})} />
+                      </div>
+                      <div className="form-group">
+                        <label>UF</label>
+                        <input type="text" className="glass-input" value={companyConfig.uf} maxLength={2}
+                          onChange={(e) => setCompanyConfig({...companyConfig, uf: e.target.value.toUpperCase()})} />
+                      </div>
+                      <div className="form-group">
+                        <label>Código IBGE Município</label>
+                        <input type="text" className="glass-input" value={companyConfig.codigoIbge} 
+                          onChange={(e) => setCompanyConfig({...companyConfig, codigoIbge: e.target.value})} />
+                      </div>
+                      <div className="form-group">
+                        <label>Regime Tributário (CRT)</label>
+                        <select className="glass-input" value={companyConfig.crt}
+                          onChange={(e) => setCompanyConfig({...companyConfig, crt: e.target.value})}>
+                          <option value="1">Simples Nacional</option>
+                          <option value="2">Simples Nacional (Excesso)</option>
+                          <option value="3">Regime Normal</option>
                         </select>
                       </div>
-                      <div className="form-group">
-                        <label>Série NFe</label>
-                        <input type="number" className="glass-input" value={companyConfig.serieNfe || 1} 
-                          onChange={(e) => setCompanyConfig({...companyConfig, serieNfe: parseInt(e.target.value)})} />
+
+                      <div className="form-group" style={{ gridColumn: 'span 2', marginTop: '1rem' }}>
+                         <h4 style={{ color: 'var(--accent-primary)', marginBottom: '0.5rem' }}>Configurações de Emissão</h4>
+                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <div className="form-group">
+                              <label>ID Token CSC (NFCe)</label>
+                              <input type="text" className="glass-input" value={companyConfig.cscId} placeholder="000001"
+                                onChange={(e) => setCompanyConfig({...companyConfig, cscId: e.target.value})} />
+                            </div>
+                            <div className="form-group">
+                              <label>Chave CSC (NFCe)</label>
+                              <input type="text" className="glass-input" value={companyConfig.cscKey} placeholder="AAAA-BBBB..."
+                                onChange={(e) => setCompanyConfig({...companyConfig, cscKey: e.target.value})} />
+                            </div>
+                         </div>
+                         
+                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                            <div style={{ padding: '0.8rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                              <label style={{ fontSize: '0.8rem', color: '#64748b' }}>Série / Próximo Nº NF-e</label>
+                              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.3rem' }}>
+                                <input type="number" className="glass-input" value={companyConfig.nfeSerie} 
+                                  onChange={(e) => setCompanyConfig({...companyConfig, nfeSerie: parseInt(e.target.value)})} />
+                                <input type="number" className="glass-input" value={companyConfig.nfeNextNumber} 
+                                  onChange={(e) => setCompanyConfig({...companyConfig, nfeNextNumber: parseInt(e.target.value)})} />
+                              </div>
+                            </div>
+                            <div style={{ padding: '0.8rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                              <label style={{ fontSize: '0.8rem', color: '#64748b' }}>Série / Próximo Nº NFC-e</label>
+                              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.3rem' }}>
+                                <input type="number" className="glass-input" value={companyConfig.nfceSerie} 
+                                  onChange={(e) => setCompanyConfig({...companyConfig, nfceSerie: parseInt(e.target.value)})} />
+                                <input type="number" className="glass-input" value={companyConfig.nfceNextNumber} 
+                                  onChange={(e) => setCompanyConfig({...companyConfig, nfceNextNumber: parseInt(e.target.value)})} />
+                              </div>
+                            </div>
+                         </div>
                       </div>
-                      <div className="form-group">
-                        <label>Certificado Digital (A1)</label>
-                        <div style={{ padding: '1rem', border: '2px dashed #27272a', borderRadius: '8px', textAlign: 'center' }}>
-                          <p className="text-muted" style={{ fontSize: '0.8rem' }}>Arraste o arquivo .pfx aqui ou clique para selecionar</p>
+
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label>Endereço Completo</label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: '1rem' }}>
+                          <input type="text" className="glass-input" placeholder="Logradouro / Rua" value={companyConfig.logradouro} 
+                            onChange={(e) => setCompanyConfig({...companyConfig, logradouro: e.target.value})} />
+                          <input type="text" className="glass-input" placeholder="Nº" value={companyConfig.numero} 
+                            onChange={(e) => setCompanyConfig({...companyConfig, numero: e.target.value})} />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                          <input type="text" className="glass-input" placeholder="Bairro" value={companyConfig.bairro} 
+                            onChange={(e) => setCompanyConfig({...companyConfig, bairro: e.target.value})} />
+                          <input type="text" className="glass-input" placeholder="CEP" value={companyConfig.cep} 
+                            onChange={(e) => setCompanyConfig({...companyConfig, cep: e.target.value})} />
+                        </div>
+                        <div style={{ marginTop: '1rem' }}>
+                          <input type="text" className="glass-input" placeholder="Telefone de Contato" value={companyConfig.telefone} 
+                            onChange={(e) => setCompanyConfig({...companyConfig, telefone: e.target.value})} />
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="glass-panel" style={{ marginTop: '2rem', padding: '2rem' }}>
-                  <h3>Endereço</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 1fr', gap: '1rem', marginTop: '1rem' }}>
-                    <div className="form-group">
-                      <label>Logradouro</label>
-                      <input type="text" className="glass-input" value={companyConfig.logradouro} 
-                        onChange={(e) => setCompanyConfig({...companyConfig, logradouro: e.target.value})} />
-                    </div>
-                    <div className="form-group">
-                      <label>Nº</label>
-                      <input type="text" className="glass-input" value={companyConfig.numero} 
-                        onChange={(e) => setCompanyConfig({...companyConfig, numero: e.target.value})} />
-                    </div>
-                    <div className="form-group">
-                      <label>Bairro</label>
-                      <input type="text" className="glass-input" value={companyConfig.bairro} 
-                        onChange={(e) => setCompanyConfig({...companyConfig, bairro: e.target.value})} />
+                  {/* Certificado Digital */}
+                  <div className="stat-card glass-panel" style={{ borderLeft: '4px solid var(--accent-primary)' }}>
+                    <h3>Certificado Digital e Ambiente</h3>
+                    <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div className="form-group">
+                        <label>Ambiente SEFAZ</label>
+                        <select className="glass-input" value={companyConfig.ambiente || '2'}
+                          onChange={(e) => setCompanyConfig({...companyConfig, ambiente: e.target.value})}>
+                          <option value="1">Produção (VALE NOTA)</option>
+                          <option value="2">Homologação (TESTES)</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Certificado Digital (Arquivo .pfx)</label>
+                        <div 
+                          style={{ 
+                            padding: '2rem', 
+                            border: '2px dashed var(--accent-primary)', 
+                            borderRadius: '12px', 
+                            textAlign: 'center',
+                            background: selectedFile ? 'rgba(139, 92, 246, 0.05)' : 'transparent',
+                            cursor: 'pointer',
+                            position: 'relative'
+                          }}
+                        >
+                          <input 
+                            type="file" 
+                            accept=".pfx" 
+                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                          />
+                          {selectedFile ? (
+                            <div>
+                              <p className="text-success" style={{ fontWeight: '600' }}>✓ {selectedFile.name}</p>
+                              <p className="text-muted" style={{ fontSize: '0.8rem' }}>Clique ou arraste para trocar</p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-accent" style={{ fontWeight: '500' }}>Selecionar arquivo Certificado A1</p>
+                              <p className="text-muted" style={{ fontSize: '0.8rem' }}>Apenas arquivos .pfx</p>
+                            </div>
+                          )}
+                        </div>
+                        {companyConfig.certificadoPath && !selectedFile && (
+                          <p className="text-muted" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                            Certificado atual: ...{companyConfig.certificadoPath.split('/').pop()}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="form-group">
+                        <label>Senha do Certificado</label>
+                        <input 
+                          type="password" 
+                          className="glass-input" 
+                          placeholder="Digite a senha do certificado"
+                          value={companyConfig.senhaCertificado || ''} 
+                          onChange={(e) => setCompanyConfig({...companyConfig, senhaCertificado: e.target.value})} 
+                        />
+                      </div>
+
+                      <div style={{ padding: '1rem', background: 'rgba(245, 158, 11, 0.05)', borderRadius: '8px', border: '1px solid var(--warning)' }}>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--warning)' }}>
+                          <strong>Atenção:</strong> O certificado é armazenado de forma segura no servidor Linux para processamento via ACBrLib.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>

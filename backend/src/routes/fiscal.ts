@@ -6,6 +6,89 @@ import { acbrService } from '../services/acbrService';
 const router = Router();
 const prisma = new PrismaClient();
 
+// Mapeamento de Produto (Vincula nome do fornecedor ao nosso ID)
+router.post('/mapping', async (req, res) => {
+  const { companyId, supplierId, externalName, productId } = req.body;
+  try {
+    const mapping = await prisma.productMapping.upsert({
+      where: {
+        companyId_supplierId_externalName: { companyId, supplierId, externalName }
+      },
+      update: { productId },
+      create: { companyId, supplierId, externalName, productId }
+    });
+    res.json(mapping);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao salvar mapeamento' });
+  }
+});
+
+// Processar Entrada de NFe
+router.post('/process-entry', async (req, res) => {
+  const { companyId, nfeData } = req.body;
+  // nfeData deve conter: { supplier, items, installments, nfeKey }
+
+  try {
+    // 1. Garante que o Fornecedor existe
+    const supplier = await prisma.customer.upsert({
+      where: { doc: nfeData.supplier.cnpj }, // doc é único no schema
+      update: { type: 'BOTH' },
+      create: {
+        companyId,
+        name: nfeData.supplier.name,
+        doc: nfeData.supplier.cnpj,
+        type: 'SUPPLIER',
+        ie: nfeData.supplier.ie,
+        address: nfeData.supplier.address,
+        city: nfeData.supplier.city,
+        uf: nfeData.supplier.uf
+      }
+    });
+
+    // 2. Processa Itens e Estoque
+    for (const item of nfeData.items) {
+      if (item.productId) {
+        // Atualiza estoque
+        await prisma.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } }
+        });
+
+        // Registra movimento
+        await prisma.stockTransaction.create({
+          data: {
+            companyId,
+            productId: item.productId,
+            type: 'IN',
+            quantity: item.quantity,
+            reason: `Entrada NFe: ${nfeData.nfeNumber}`
+          }
+        });
+      }
+    }
+
+    // 3. Processa Financeiro (Contas a Pagar)
+    for (const inst of nfeData.installments) {
+      await prisma.accountPayable.create({
+        data: {
+          companyId,
+          description: `Compra NFe ${nfeData.nfeNumber} - Parc ${inst.number}`,
+          amount: inst.amount,
+          dueDate: new Date(inst.dueDate),
+          supplierName: supplier.name,
+          nfeKey: nfeData.nfeKey,
+          status: 'PENDING'
+        }
+      });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erro ao processar entrada fiscal' });
+  }
+});
+
 // Emitir NFe usando ACBrLib Nativa
 router.post('/emit-acbr', async (req, res) => {
   try {

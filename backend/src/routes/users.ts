@@ -26,9 +26,17 @@ router.post('/', async (req, res) => {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return res.status(400).json({ error: 'E-mail já cadastrado' });
 
-    // For now we use the first company in the system if not provided
-    const firstCompany = await prisma.company.findFirst();
-    if (!firstCompany) return res.status(500).json({ error: 'Nenhuma empresa cadastrada no sistema' });
+    // For now we use the first company or create one if none exists
+    let company = await prisma.company.findFirst();
+    
+    if (!company) {
+      company = await prisma.company.create({
+        data: {
+          cnpj: '00000000000000',
+          razaoSocial: 'Empresa Principal',
+        }
+      });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -38,7 +46,7 @@ router.post('/', async (req, res) => {
         email,
         password: hashedPassword,
         role: role || 'CAIXA',
-        companyId: firstCompany.id
+        companyId: company.id
       }
     });
 

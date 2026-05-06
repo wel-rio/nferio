@@ -29,6 +29,18 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 /**
+ * Rota para buscar configuração atual (pega a primeira empresa para este MVP)
+ */
+router.get('/setup/current', async (req: Request, res: Response) => {
+  try {
+    const company = await prisma.company.findFirst();
+    res.json(company);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar configurações' });
+  }
+});
+
+/**
  * Rota para atualizar dados da empresa e upload de certificado
  */
 router.post('/setup', upload.single('certificado'), async (req: Request, res: Response) => {
@@ -42,7 +54,17 @@ router.post('/setup', upload.single('certificado'), async (req: Request, res: Re
       uf, 
       codigoIbge, 
       senhaCertificado,
-      crt 
+      crt,
+      logradouro,
+      numero,
+      bairro,
+      cep,
+      cscId,
+      cscKey,
+      nfeSerie,
+      nfeNextNumber,
+      nfceSerie,
+      nfceNextNumber
     } = req.body;
 
     const certificadoPath = req.file ? req.file.path : undefined;
@@ -57,6 +79,17 @@ router.post('/setup', upload.single('certificado'), async (req: Request, res: Re
         uf,
         codigoIbge,
         crt,
+        logradouro,
+        numero,
+        bairro,
+        cep,
+        telefone,
+        cscId,
+        cscKey,
+        nfeSerie: parseInt(nfeSerie || '1'),
+        nfeNextNumber: parseInt(nfeNextNumber || '1'),
+        nfceSerie: parseInt(nfceSerie || '1'),
+        nfceNextNumber: parseInt(nfceNextNumber || '1'),
         certificadoSenha: senhaCertificado,
         ...(certificadoPath && { certificadoPath })
       },
@@ -68,6 +101,17 @@ router.post('/setup', upload.single('certificado'), async (req: Request, res: Re
         uf,
         codigoIbge,
         crt,
+        logradouro,
+        numero,
+        bairro,
+        cep,
+        telefone,
+        cscId,
+        cscKey,
+        nfeSerie: parseInt(nfeSerie || '1'),
+        nfeNextNumber: parseInt(nfeNextNumber || '1'),
+        nfceSerie: parseInt(nfceSerie || '1'),
+        nfceNextNumber: parseInt(nfceNextNumber || '1'),
         certificadoSenha: senhaCertificado,
         certificadoPath: certificadoPath || ''
       }

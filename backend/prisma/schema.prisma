@@ -8,8 +8,8 @@ datasource db {
 }
 
 model Company {
-  id                String   @id @default(uuid())
-  cnpj              String   @unique
+  id                String  @id @default(uuid())
+  cnpj              String  @unique
   razaoSocial       String
   nomeFantasia      String?
   inscricaoEstadual String?
@@ -22,42 +22,92 @@ model Company {
   uf                String?
   cep               String?
   codigoIbge        String?
-  crt               String?  // Regime Tributário
-  
-  // Certificado Digital (Apenas o path para o .pfx armazenado no servidor)
-  certificadoPath   String?
-  certificadoSenha  String?
+  crt               String? // Regime Tributário
 
-  users             User[]
-  categories        Category[]
-  products          Product[]
-  orders            Order[]
-  cashFlows         CashFlow[]
+  // Certificado Digital (Apenas o path para o .pfx armazenado no servidor)
+  certificadoPath  String?
+  certificadoSenha String?
+
+  // Assinatura e Planos
+  subscriptionStatus String   @default("TRIAL") // TRIAL, ACTIVE, EXPIRED
+  trialEndsAt        DateTime @default(dbgenerated("NOW() + interval '7 days'"))
+  plan               String   @default("BASIC") // BASIC, PRO, UNLIMITED
+
+  // Configurações Fiscais Avançadas
+  cscId           String?
+  cscKey          String?
+  nfeSerie        Int      @default(1)
+  nfeNextNumber   Int      @default(1)
+  nfceSerie       Int      @default(1)
+  nfceNextNumber  Int      @default(1)
+
+  users              User[]
+  categories         Category[]
+  products           Product[]
+  orders             Order[]
+  customers          Customer[]
   accountReceivables AccountReceivable[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  accountPayables    AccountPayable[]
+  cashFlows          CashFlow[]
+
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  ProductMapping   ProductMapping[]
+  StockTransaction StockTransaction[]
+}
+
+model Customer {
+  id        String           @id @default(uuid())
+  name      String
+  doc       String?          @unique // CPF/CNPJ
+  type      String           @default("PF") // PF ou PJ
+  email     String?
+  phone     String?
+  companyId String
+  company   Company          @relation(fields: [companyId], references: [id])
+  ie        String? // Inscrição Estadual
+  address   String?
+  city      String?
+  uf        String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  orders    Order[]
+  mappings  ProductMapping[]
+}
+
+model ProductMapping {
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  supplierId   String
+  supplier     Customer @relation(fields: [supplierId], references: [id])
+  externalName String // Nome do produto como vem no XML do fornecedor
+  productId    String? // Nosso ID interno do produto
+  product      Product? @relation(fields: [productId], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@unique([companyId, supplierId, externalName])
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      String   @default("ADMIN") // ADMIN, OPERATOR
-  
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  cashFlows CashFlow[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String
+  name        String
+  role        String   @default("ADMIN") // ADMIN, OPERATOR
+  permissions String?  @default("all") // slugs: sales,fiscal,inbound,stock,finance,customers,settings,users
+  companyId   String
+  company     Company    @relation(fields: [companyId], references: [id])
+  cashFlows   CashFlow[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Category {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
+  company   Company   @relation(fields: [companyId], references: [id])
   products  Product[]
 
   createdAt DateTime @default(now())
@@ -65,107 +115,127 @@ model Category {
 }
 
 model Product {
-  id             String   @id @default(uuid())
-  name           String
-  sku            String   @unique // Código Interno
-  barcode        String?  // EAN / GTIN
-  price          Float
-  costPrice      Float?
-  stock          Float    @default(0)
-  unit           String   @default("UN") // UN, KG, CX, etc
-  
+  id        String  @id @default(uuid())
+  name      String
+  sku       String  @unique // Código Interno
+  barcode   String? // EAN / GTIN
+  price     Float
+  costPrice Float?
+  stock     Float   @default(0)
+  unit      String  @default("UN") // UN, KG, CX, etc
+
   // Dados Fiscais Básicos
-  ncm            String?
-  cest           String?
-  cfopPadrao     String?
-  origem         String   @default("0") // 0 - Nacional, 1 - Estrangeira Importação Direta, etc.
+  ncm        String?
+  cest       String?
+  cfopPadrao String?
+  origem     String  @default("0") // 0 - Nacional, 1 - Estrangeira Importação Direta, etc.
 
-  categoryId     String?
-  category       Category? @relation(fields: [categoryId], references: [id])
-  
-  companyId      String
-  company        Company   @relation(fields: [companyId], references: [id])
-  
-  stockMoves     StockTransaction[]
-  orderItems     OrderItem[]
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  stockMoves StockTransaction[]
+  orderItems OrderItem[]
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  ProductMapping ProductMapping[]
 }
 
 model StockTransaction {
-  id          String   @id @default(uuid())
-  type        String   // IN, OUT
-  quantity    Float
-  reason      String?  // Ex: "Compra", "Venda", "Ajuste manual"
-  
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id])
-
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  type      String // IN (Entrada), OUT (Saída), ADJUST (Ajuste)
+  quantity  Float
+  reason    String? // Ex: "Compra NFe 123", "Perda", "Balancete"
+  createdAt DateTime @default(now())
 }
 
 model Order {
-  id            String   @id @default(uuid())
-  orderNumber   Int      @unique @default(autoincrement())
-  status        String   @default("ORCAMENTO") // ORCAMENTO, PEDIDO, FATURADO, CANCELADO
-  customerName  String?
-  customerDoc   String?  // CPF/CNPJ
-  totalAmount   Float    @default(0)
-  discount      Float    @default(0)
-  netAmount     Float    @default(0)
-  
-  companyId     String
-  company       Company  @relation(fields: [companyId], references: [id])
+  id          String @id @default(uuid())
+  orderNumber Int    @unique @default(autoincrement())
+  status      String @default("ORCAMENTO") // ORCAMENTO, PEDIDO, FATURADO, CANCELADO
 
-  items         OrderItem[]
-  receivables   AccountReceivable[]
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  customerName String? // Fallback ou para consumidor final sem cadastro
+  customerDoc  String?
+  totalAmount  Float   @default(0)
+  discount     Float   @default(0)
+  netAmount    Float   @default(0)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  items       OrderItem[]
+  receivables AccountReceivable[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model OrderItem {
-  id            String   @id @default(uuid())
-  quantity      Float
-  unitPrice     Float
-  totalPrice    Float
-  
-  orderId       String
-  order         Order    @relation(fields: [orderId], references: [id])
-  
-  productId     String
-  product       Product  @relation(fields: [productId], references: [id])
+  id         String @id @default(uuid())
+  quantity   Float
+  unitPrice  Float
+  totalPrice Float
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
 }
 
 model CashFlow {
-  id            String   @id @default(uuid())
-  type          String   // OPEN, CLOSE, IN, OUT
-  amount        Float
-  description   String?
-  
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  
-  companyId     String
-  company       Company  @relation(fields: [companyId], references: [id])
+  id          String  @id @default(uuid())
+  type        String // OPEN, CLOSE, IN, OUT
+  amount      Float
+  description String?
 
-  createdAt     DateTime @default(now())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
 }
 
 model AccountReceivable {
-  id            String   @id @default(uuid())
-  description   String
-  amount        Float
-  dueDate       DateTime
-  status        String   @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
-  
-  orderId       String?
-  order         Order?   @relation(fields: [orderId], references: [id])
-  
-  companyId     String
-  company       Company  @relation(fields: [companyId], references: [id])
+  id          String   @id @default(uuid())
+  description String
+  amount      Float
+  dueDate     DateTime
+  status      String   @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AccountPayable {
+  id          String   @id @default(uuid())
+  description String
+  amount      Float
+  dueDate     DateTime
+  status      String   @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
+  category    String? // Ex: "Aluguel", "Fornecedores"
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
