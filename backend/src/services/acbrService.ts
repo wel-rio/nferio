@@ -61,10 +61,13 @@ export const acbrService = {
   async getVersao(): Promise<string> {
     if (!this.private.functions.NFE_Versao) return "Não inicializada";
 
+    // No Koffi, para int* de saída, usamos um Buffer ou TypedArray
     const buffer = Buffer.alloc(256);
-    const size = [256];
+    const size = new Int32Array([256]);
     
-    this.private.functions.NFE_Versao(buffer, size);
+    const res = this.private.functions.NFE_Versao(buffer, size);
+    if (res !== 0) return `Erro ao obter versão: ${res}`;
+
     return buffer.toString('utf8').replace(/\0/g, '').trim();
   },
 
