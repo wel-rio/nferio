@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   BarChart3,
   Shield,
-  FileDown
+  FileDown,
+  PieChart
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api, { fiscalApi } from '../services/api';
