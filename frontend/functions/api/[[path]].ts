@@ -14,7 +14,11 @@ export async function onRequest({ request, env, next }) {
     const tableMap = {
       'products': 'Product',
       'customers': 'Customer',
-      'finance': 'Finance',
+      'finance': 'AccountReceivable', // Ajustado para o esquema real
+      'payables': 'AccountPayable',
+      'users': 'User',
+      'orders': 'Order',
+      'categories': 'Category',
       'employees': 'Employee'
     };
 
