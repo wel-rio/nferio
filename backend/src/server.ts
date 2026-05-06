@@ -25,8 +25,22 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3333;
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'NFERIO ERP API is running' });
+app.get('/api/health', async (req, res) => {
+  const acbrReady = await acbrService.checkEnvironment();
+  res.json({ 
+    status: 'ok', 
+    message: 'NFERIO ERP API is running',
+    vps: {
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      platform: process.platform
+    },
+    acbr: {
+      ready: acbrReady,
+      lib: 'ACBrLibNFe',
+      status: acbrReady ? 'OPERACIONAL' : 'NÃO INICIALIZADO'
+    }
+  });
 });
 
 app.use('/api/products', productRoutes);

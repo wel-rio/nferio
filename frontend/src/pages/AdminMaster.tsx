@@ -16,17 +16,20 @@ import {
 export default function AdminMaster() {
   const [companies, setCompanies] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({ totalCompanies: 0, activeNow: 0, nfeIssued: 0 });
+  const [health, setHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      const [resCompanies, resStats] = await Promise.all([
+      const [resCompanies, resStats, resHealth] = await Promise.all([
         api.get('/admin/companies'),
-        api.get('/admin/stats')
+        api.get('/admin/stats'),
+        api.get('/health')
       ]);
       setCompanies(resCompanies.data);
       setStats(resStats.data);
+      setHealth(resHealth.data);
     } catch (error) {
       console.error('Erro ao buscar dados do Admin Master');
     } finally {
@@ -76,10 +79,20 @@ export default function AdminMaster() {
           <p className="stat-value text-success">{stats.nfeIssued}</p>
           <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Volume total transacionado</span>
         </div>
-        <div className="stat-card glass-panel" style={{ border: '1px solid rgba(139, 92, 246, 0.3)' }}>
-          <h3>Status ACBrLib</h3>
-          <p className="stat-value" style={{ color: 'var(--success)', fontSize: '1.5rem' }}>OPERACIONAL</p>
-          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}><Server size={12} /> Servidor Oracle Cloud</span>
+        <div className="stat-card glass-panel" style={{ 
+          border: `1px solid ${health?.acbr?.ready ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+          background: health?.acbr?.ready ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)'
+        }}>
+          <h3>Motor Fiscal (ACBr)</h3>
+          <p className="stat-value" style={{ 
+            color: health?.acbr?.ready ? 'var(--success)' : 'var(--error)', 
+            fontSize: '1.5rem' 
+          }}>
+            {health?.acbr?.status || 'VERIFICANDO...'}
+          </p>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+            <Server size={12} /> {health?.vps?.platform === 'linux' ? 'Oracle Cloud VPS' : 'Local Host'}
+          </span>
         </div>
       </div>
 
