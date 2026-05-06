@@ -79,8 +79,6 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      </section>
-
       {/* Marketing Section: Features Display */}
       <section className="market-features" style={{ padding: '8rem 5%', background: 'linear-gradient(to bottom, transparent, rgba(15, 23, 42, 0.5))' }}>
         <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
