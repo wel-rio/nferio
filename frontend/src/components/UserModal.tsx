@@ -48,8 +48,9 @@ export default function UserModal({ onClose, onSuccess }: UserModalProps) {
       });
       onSuccess();
       onClose();
-    } catch (error) {
-      alert('Erro ao criar usuário');
+    } catch (error: any) {
+      const msg = error.response?.data?.error || error.message || 'Erro desconhecido';
+      alert(`Erro ao criar usuário: ${msg}`);
     }
   };
 

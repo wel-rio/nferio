@@ -67,7 +67,7 @@ router.post('/login', async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Senha incorreta' });
 
     // Se a licença estiver vencida, avisar (mas deixar logar para pagar)
-    const isExpired = user.company.licenca && new Date(user.company.licenca) < new Date();
+    const isExpired = user.company.trialEndsAt && new Date(user.company.trialEndsAt) < new Date();
 
     const { password: _, ...userWithoutPassword } = user;
     res.json({

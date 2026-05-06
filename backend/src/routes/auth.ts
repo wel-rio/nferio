@@ -22,7 +22,7 @@ router.post('/register', async (req, res) => {
           cnpj,
           razaoSocial,
           // 7 days trial
-          licenca: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         }
       });
 
