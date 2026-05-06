@@ -25,9 +25,10 @@ export async function onRequest({ request, env, next }) {
     }
 
     const supabaseTable = tableMap[tableName];
+    const searchParams = url.search; // Pega tudo depois da "?"
     
-    // Proxy para o Supabase REST API
-    const supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/${supabaseTable}`, {
+    // Proxy para o Supabase REST API (agora com parâmetros de busca)
+    const supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/${supabaseTable}${searchParams}`, {
       method: request.method,
       headers: {
         'apikey': SUPABASE_KEY,
@@ -35,7 +36,7 @@ export async function onRequest({ request, env, next }) {
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
       },
-      body: request.method !== 'GET' ? await request.text() : undefined
+      body: (request.method !== 'GET' && request.method !== 'HEAD') ? await request.text() : undefined
     });
 
     const data = await supabaseRes.json();
