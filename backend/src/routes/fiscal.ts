@@ -1,5 +1,25 @@
 import { Router } from 'express';
 import { acbrService } from '../services/acbrService';
+import fs from 'fs';
+import path from 'path';
+import multer from 'multer';
+
+// Configuração de Upload de Certificado
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const certDir = path.join(process.cwd(), 'acbr', 'certs');
+    if (!fs.existsSync(certDir)) {
+      fs.mkdirSync(certDir, { recursive: true });
+    }
+    cb(null, certDir);
+  },
+  filename: (req, file, cb) => {
+    // Salva sempre como cert.pfx para simplificar o motor
+    cb(null, 'cert.pfx');
+  }
+});
+
+const upload = multer({ storage });
 
 const router = Router();
 
@@ -64,6 +84,42 @@ router.get('/test-acbr', async (req, res) => {
     });
   } catch (error: any) {
     res.status(500).json({ error: 'Erro ao comunicar com ACBrLib', message: error.message });
+  }
+});
+
+// Configuração da Empresa e Certificado (Persistência Local para ACBr)
+router.post('/company/setup', upload.single('certificado'), async (req, res) => {
+  try {
+    const config = req.body;
+    const configPath = path.join(process.cwd(), 'acbr', 'config.json');
+
+    // Salva as configurações em um JSON local na VPS
+    // Isso mantém o serviço stateless em relação ao DB principal, mas persistente localmente para o motor
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+    res.json({ 
+      success: true, 
+      message: "Configurações e Certificado salvos com sucesso na VPS!",
+      certPath: req.file ? req.file.path : 'mantido'
+    });
+  } catch (error: any) {
+    console.error("Erro ao salvar config na VPS:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Buscar Configuração Atual da VPS
+router.get('/company/setup/current', async (req, res) => {
+  try {
+    const configPath = path.join(process.cwd(), 'acbr', 'config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      res.json(config);
+    } else {
+      res.status(404).json({ message: "Nenhuma configuração encontrada na VPS" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Erro ao ler configurações" });
   }
 });
 

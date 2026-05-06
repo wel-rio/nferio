@@ -157,10 +157,10 @@ export default function Dashboard() {
   const fetchConfig = async () => {
     if (!company) return;
     try {
-      const res = await api.get('/company/setup/current', { params: { companyId: company.id } });
+      const res = await fiscalApi.get('/company/setup/current', { params: { companyId: company.id } });
       if (res.data) setCompanyConfig(res.data);
     } catch (error) {
-      console.error('Failed to fetch config', error);
+      console.error('Failed to fetch config from VPS', error);
     }
   };
 
@@ -776,11 +776,12 @@ export default function Dashboard() {
                   formData.append('certificado', selectedFile);
                 }
 
-                await api.post('/company/setup', formData, {
+                // Agora envia para a VPS (fiscalApi)
+                await fiscalApi.post('/company/setup', formData, {
                   headers: { 'Content-Type': 'multipart/form-data' }
                 });
 
-                alert('Configurações e Certificado salvos com sucesso!');
+                alert('Configurações e Certificado salvos com sucesso na VPS!');
                 fetchConfig();
               } catch (error) {
                 console.error(error);
