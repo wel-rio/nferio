@@ -6,7 +6,7 @@ import { acbrService } from '../services/acbrService';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Emitir NFe usando ACBrLib Local no Servidor
+// Emitir NFe usando ACBrLib Nativa
 router.post('/emit-acbr', async (req, res) => {
   try {
     const { orderId } = req.body;
@@ -16,23 +16,35 @@ router.post('/emit-acbr', async (req, res) => {
       where: { id: orderId },
       include: { items: { include: { product: true } } }
     });
+    
     const company = await prisma.company.findFirst();
 
-    if (!order || !company) return res.status(404).json({ error: 'Dados insuficientes' });
+    if (!order || !company) {
+      return res.status(404).json({ error: 'Dados insuficientes (Pedido ou Empresa não encontrados)' });
+    }
 
-    // 2. Chama a lógica de emissão (Simulada para funcionar sem DLL agora)
-    // No ambiente real, aqui chamamos o acbrService que interage com a DLL
-    const result = await acbrService.emitirNFe("CONTEUDO_TXT_AQUI");
+    // 2. Converte os dados para o formato INI da ACBr
+    const { acbrConverter } = require('../utils/acbrConverter');
+    const iniContent = acbrConverter.orderToIni(order, company);
 
-    // 3. Atualiza o pedido para FATURADO
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { status: 'FATURADO' }
-    });
+    // 3. Chama a lógica de emissão real (Passando a empresa para configurar o certificado)
+    const result = await acbrService.emitirNFe(iniContent, company);
+
+    // 4. Se deu sucesso, atualiza o pedido
+    if (result.success) {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { 
+          status: 'FATURADO',
+          // Aqui poderíamos salvar o XML e o Protocolo se o Prisma tiver esses campos
+        }
+      });
+    }
 
     res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao emitir via ACBrLib' });
+  } catch (error: any) {
+    console.error("Erro na rota fiscal:", error);
+    res.status(500).json({ error: 'Erro ao emitir via ACBrLib', details: error.message });
   }
 });
 

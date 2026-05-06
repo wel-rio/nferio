@@ -38,7 +38,12 @@ export const acbrService = {
         NFE_Inicializar: this.private.lib.func('int NFE_Inicializar(const char* eArqConfig, const char* eChaveCrypt)'),
         NFE_Finalizar: this.private.lib.func('int NFE_Finalizar()'),
         NFE_Versao: this.private.lib.func('int NFE_Versao(char* sResposta, int* esTamanho)'),
-        NFE_UltimoRetorno: this.private.lib.func('int NFE_UltimoRetorno(char* sResposta, int* esTamanho)')
+        NFE_UltimoRetorno: this.private.lib.func('int NFE_UltimoRetorno(char* sResposta, int* esTamanho)'),
+        NFE_ConfigGravarValor: this.private.lib.func('int NFE_ConfigGravarValor(const char* sSecao, const char* sChave, const char* sValor)'),
+        NFE_CarregarINI: this.private.lib.func('int NFE_CarregarINI(const char* eArquivoOuIni)'),
+        NFE_Assinar: this.private.lib.func('int NFE_Assinar()'),
+        NFE_Validar: this.private.lib.func('int NFE_Validar()'),
+        NFE_Enviar: this.private.lib.func('int NFE_Enviar(int aLote, bool aImprimir, bool aSincrono, char* sResposta, int* esTamanho)'),
       };
 
       // Inicializa a lib com o arquivo INI
@@ -87,15 +92,81 @@ export const acbrService = {
   },
 
   /**
-   * Emissão de NFe (Ainda em desenvolvimento)
+   * Configura os dados do certificado do cliente dinamicamente
    */
-  async emitirNFe(dados: any): Promise<any> {
-    const versao = await this.getVersao();
-    return {
-      success: true,
-      status: `ACBrLib carregada nativamente (${versao})`,
-      ambiente: process.platform,
-      timestamp: new Date().toISOString()
-    };
+  async configurarEmpresa(company: any) {
+    if (!this.private.functions.NFE_ConfigGravarValor) return;
+
+    console.log(`🔐 Configurando certificado para: ${company.razaoSocial}`);
+
+    // DFe -> SSL Libs (Necessário para Linux)
+    this.private.functions.NFE_ConfigGravarValor("DFe", "SSLCryptLib", "1");
+    this.private.functions.NFE_ConfigGravarValor("DFe", "SSLHttpLib", "3");
+    this.private.functions.NFE_ConfigGravarValor("DFe", "SSLXmlSignLib", "4");
+
+    // Certificado
+    if (company.certificadoPath) {
+      this.private.functions.NFE_ConfigGravarValor("DFe", "ArquivoPFX", company.certificadoPath);
+    }
+    if (company.certificadoSenha) {
+      this.private.functions.NFE_ConfigGravarValor("DFe", "Senha", company.certificadoSenha);
+    }
+
+    // Ambiente (1=Produção, 2=Homologação)
+    // Por enquanto forçando 2 para segurança, mas pode vir do banco
+    this.private.functions.NFE_ConfigGravarValor("NFe", "Ambiente", "2");
+  },
+
+  /**
+   * Emissão de NFe real
+   */
+  async emitirNFe(dados: string, company: any): Promise<any> {
+    try {
+      if (!this.private.functions.NFE_CarregarINI) throw new Error("Biblioteca não inicializada");
+
+      // 1. Configura a lib para este cliente específico
+      await this.configurarEmpresa(company);
+
+      // 2. Carrega os dados (INI)
+      let res = this.private.functions.NFE_CarregarINI(dados);
+      if (res !== 0) throw new Error(`Erro ao carregar dados (NFE_CarregarINI): ${res}`);
+
+      // 2. Assina
+      res = this.private.functions.NFE_Assinar();
+      if (res !== 0) throw new Error(`Erro ao assinar nota (NFE_Assinar): ${res}`);
+
+      // 3. Valida
+      res = this.private.functions.NFE_Validar();
+      if (res !== 0) throw new Error(`Erro ao validar nota (NFE_Validar): ${res}`);
+
+      // 4. Envia (Lote: 1, Imprimir: false, Sincrono: true)
+      const buffer = Buffer.alloc(4096);
+      const size = new Int32Array([4096]);
+      res = this.private.functions.NFE_Enviar(1, false, true, buffer, size);
+
+      const resposta = buffer.toString('utf8').replace(/\0/g, '').trim();
+
+      return {
+        success: res === 0,
+        code: res,
+        resposta,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error: any) {
+      console.error("❌ Erro na emissão ACBr:", error.message);
+      
+      // Tenta pegar o último erro detalhado da lib
+      const bufferErro = Buffer.alloc(1024);
+      const sizeErro = new Int32Array([1024]);
+      this.private.functions.NFE_UltimoRetorno(bufferErro, sizeErro);
+      const msgErro = bufferErro.toString('utf8').replace(/\0/g, '').trim();
+
+      return {
+        success: false,
+        error: error.message,
+        detalhes: msgErro,
+        timestamp: new Date().toISOString()
+      };
+    }
   }
 };
