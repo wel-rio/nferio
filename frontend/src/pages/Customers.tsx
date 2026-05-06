@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import api from '../services/api';
 import { Users, Search, Plus, MapPin, Phone, Mail, Building2, Trash2, Edit, X } from 'lucide-react';
 
 export default function Customers() {
@@ -24,7 +25,7 @@ export default function Customers() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('http://localhost:3333/api/customers', {
+      const res = await api.get('/customers', {
         params: { companyId: 'default-company-id' } // Ajustar no futuro
       });
       setCustomers(res.data);
@@ -64,9 +65,9 @@ export default function Customers() {
     e.preventDefault();
     try {
       if (formData.id) {
-        await axios.put(`http://localhost:3333/api/customers/${formData.id}`, { ...formData, companyId: 'default-company-id' });
+        await api.put(`/customers/${formData.id}`, { ...formData, companyId: 'default-company-id' });
       } else {
-        await axios.post('http://localhost:3333/api/customers', { ...formData, companyId: 'default-company-id' });
+        await api.post('/customers', { ...formData, companyId: 'default-company-id' });
       }
       setIsModalOpen(false);
       setFormData({ id: '', name: '', document: '', email: '', phone: '', type: 'CUSTOMER', ie: '', address: '', city: '', uf: '' });

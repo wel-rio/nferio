@@ -11,6 +11,7 @@ import companyRoutes from './routes/company';
 import adminRoutes from './routes/admin';
 import customerRoutes from './routes/customers';
 import stockRoutes from './routes/stock';
+import ncmRoutes from './routes/ncm';
 
 import { acbrService } from './services/acbrService';
 
@@ -36,6 +37,7 @@ app.use('/api/company', companyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/stock', stockRoutes);
+app.use('/api/ncm', ncmRoutes);
 
 // Inicializa a ACBrLib ao subir o servidor
 acbrService.checkEnvironment().then(ready => {

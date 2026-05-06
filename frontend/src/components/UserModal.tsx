@@ -1,131 +1,96 @@
-import { useState } from 'react';
-import { X, UserPlus, Shield, Check } from 'lucide-react';
-import axios from 'axios';
-import './Modal.css';
+import React, { useState } from 'react';
+import { X, UserPlus, Shield } from 'lucide-react';
+import api from '../services/api';
 
 interface UserModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const AVAILABLE_PERMISSIONS = [
-  { slug: 'sales', label: 'Vendas' },
-  { slug: 'fiscal', label: 'Notas Fiscais (NFe)' },
-  { slug: 'inbound', label: 'Recebimentos (Entradas)' },
-  { slug: 'stock', label: 'Estoque / Inventário' },
-  { slug: 'finance', label: 'Financeiro' },
-  { slug: 'customers', label: 'Clientes / Fornecedores' },
-  { slug: 'settings', label: 'Configurações' },
-  { slug: 'users', label: 'Gestão de Usuários' },
-];
-
 export default function UserModal({ onClose, onSuccess }: UserModalProps) {
-  const [loading, setLoading] = useState(false);
-  const [permissions, setPermissions] = useState<string[]>(['sales']);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    role: 'OPERATOR'
+    role: 'USER',
+    permissions: [] as string[]
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const permissionOptions = [
+    { label: 'Vendas', value: 'sales' },
+    { label: 'Fiscal', value: 'fiscal' },
+    { label: 'Estoque', value: 'stock' },
+    { label: 'Financeiro', value: 'finance' },
+    { label: 'Clientes', value: 'customers' },
+    { label: 'Usuários', value: 'users' },
+    { label: 'Configurações', value: 'settings' }
+  ];
 
-  const togglePermission = (slug: string) => {
-    if (permissions.includes(slug)) {
-      setPermissions(permissions.filter(p => p !== slug));
+  const handleTogglePermission = (val: string) => {
+    if (formData.permissions.includes(val)) {
+      setFormData({ ...formData, permissions: formData.permissions.filter(p => p !== val) });
     } else {
-      setPermissions([...permissions, slug]);
+      setFormData({ ...formData, permissions: [...formData.permissions, val] });
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     try {
-      await axios.post('http://localhost:3333/api/users', {
+      await api.post('/users', {
         ...formData,
-        permissions: permissions.join(','),
-        companyId: 'default-company-id' // Ajustar para pegar do contexto
+        permissions: formData.permissions.join(','),
+        companyId: 'default-company-id'
       });
       onSuccess();
       onClose();
     } catch (error) {
-      console.error(error);
-      alert('Erro ao cadastrar usuário');
-    } finally {
-      setLoading(false);
+      alert('Erro ao criar usuário');
     }
   };
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content glass-panel animate-fade-in" style={{ maxWidth: '600px' }}>
+      <div className="modal-content glass-panel animate-scale-up" style={{ width: '500px' }}>
         <div className="modal-header">
-          <h2><UserPlus size={20} /> Cadastrar Funcionário</h2>
-          <button className="icon-btn" onClick={onClose}><X size={20} /></button>
+          <h2><UserPlus size={20} /> Novo Funcionário</h2>
+          <button className="close-btn" onClick={onClose}><X size={20} /></button>
         </div>
-
-        <form onSubmit={handleSubmit} className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div className="form-group">
-              <label>Nome Completo *</label>
-              <input required type="text" name="name" className="glass-input" value={formData.name} onChange={handleChange} />
-            </div>
-
-            <div className="form-group">
-              <label>E-mail (Login) *</label>
-              <input required type="email" name="email" className="glass-input" value={formData.email} onChange={handleChange} />
-            </div>
-
-            <div className="form-group">
-              <label>Senha *</label>
-              <input required type="password" name="password" className="glass-input" value={formData.password} onChange={handleChange} />
-            </div>
-
-            <div className="form-group">
-              <label>Perfil Base *</label>
-              <select name="role" className="glass-input" value={formData.role} onChange={handleChange}>
-                <option value="OPERATOR">Operador</option>
-                <option value="ADMIN">Administrador</option>
-              </select>
-            </div>
+        <form onSubmit={handleSubmit} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="form-group">
+            <label>Nome Completo</label>
+            <input type="text" className="glass-input" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
           </div>
-
-          <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <label style={{ display: 'block', marginBottom: '1rem', fontWeight: '600' }}>Telas Autorizadas</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {AVAILABLE_PERMISSIONS.map(p => (
-                <div 
-                  key={p.slug}
-                  onClick={() => togglePermission(p.slug)}
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    background: permissions.includes(p.slug) ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
-                    border: '1px solid',
-                    borderColor: permissions.includes(p.slug) ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <span style={{ fontSize: '0.9rem', color: permissions.includes(p.slug) ? 'white' : '#94a3b8' }}>{p.label}</span>
-                  {permissions.includes(p.slug) && <Check size={14} color="var(--accent-primary)" />}
-                </div>
+          <div className="form-group">
+            <label>E-mail (Login)</label>
+            <input type="email" className="glass-input" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+          </div>
+          <div className="form-group">
+            <label>Senha Provisória</label>
+            <input type="password" placeholder="Mínimo 6 caracteres" className="glass-input" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
+          </div>
+          
+          <div style={{ marginTop: '0.5rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
+              <Shield size={16} color="var(--accent-primary)" /> Telas Autorizadas
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {permissionOptions.map(opt => (
+                <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={formData.permissions.includes(opt.value)}
+                    onChange={() => handleTogglePermission(opt.value)}
+                  />
+                  {opt.label}
+                </label>
               ))}
             </div>
           </div>
 
-          <div className="modal-footer" style={{ gridColumn: 'span 2', padding: '0', border: 'none', marginTop: '1rem' }}>
-            <button type="button" className="btn-secondary" onClick={onClose} style={{ flex: 1 }}>Cancelar</button>
-            <button type="submit" className="btn-primary" disabled={loading} style={{ flex: 1 }}>
-              {loading ? 'Salvando...' : 'Cadastrar e Autorizar'}
-            </button>
+          <div className="modal-footer" style={{ marginTop: '1rem' }}>
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn-primary">Criar Acesso</button>
           </div>
         </form>
       </div>

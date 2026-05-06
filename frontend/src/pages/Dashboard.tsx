@@ -16,7 +16,7 @@ import {
   Wallet
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import ProductModal from '../components/ProductModal';
 import StockAdjustmentModal from '../components/StockAdjustmentModal';
 import OrderModal from '../components/OrderModal';
@@ -56,7 +56,7 @@ export default function Dashboard() {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get('http://localhost:3333/api/users');
+      const res = await api.get('/users');
       setUsers(res.data);
     } catch (error) {
       console.error('Failed to fetch users', error);
@@ -73,7 +73,7 @@ export default function Dashboard() {
 
   const fetchProducts = async () => {
     try {
-      const res = await axios.get('http://localhost:3333/api/products');
+      const res = await api.get('/products');
       setProducts(res.data);
     } catch (error) {
       console.error('Failed to fetch products', error);
@@ -86,7 +86,7 @@ export default function Dashboard() {
 
   const fetchOrders = async () => {
     try {
-      const res = await axios.get('http://localhost:3333/api/orders');
+      const res = await api.get('/orders');
       setOrders(res.data);
     } catch (error) {
       console.error('Failed to fetch orders', error);
@@ -95,7 +95,7 @@ export default function Dashboard() {
 
   const convertOrder = async (id: string) => {
     try {
-      await axios.post(`http://localhost:3333/api/orders/${id}/convert`);
+      await api.post(`/orders/${id}/convert`);
       fetchOrders();
       fetchProducts(); // Update stock in products tab
     } catch (error) {
@@ -108,7 +108,7 @@ export default function Dashboard() {
 
   const fetchFinance = async () => {
     try {
-      const res = await axios.get('http://localhost:3333/api/finance/summary');
+      const res = await api.get('/finance/summary');
       setFinanceSummary(res.data);
     } catch (error) {
       console.error('Failed to fetch finance', error);
@@ -144,7 +144,7 @@ export default function Dashboard() {
   const fetchConfig = async () => {
     try {
       // Pega o primeiro registro de empresa (ou você pode filtrar pelo ID do usuário logado no futuro)
-      const res = await axios.get('http://localhost:3333/api/company/setup/current');
+      const res = await api.get('/company/setup/current');
       if (res.data) {
         setCompanyConfig(res.data);
       }
@@ -573,13 +573,13 @@ export default function Dashboard() {
                                         ipc.send('emit-nfe', { txtContent: txt });
                                         ipc.once('nfe-success', async (event: any, res: any) => {
                                           alert(`Nota Autorizada via ACBrLib LOCAL! Chave: ${res.chave}`);
-                                          await axios.post(`http://localhost:3333/api/orders/${order.id}/convert`);
+                                          await api.post(`/orders/${order.id}/convert`);
                                           fetchOrders();
                                         });
                                       } else {
                                         // 2b. Se for WEB, envia para o BACKEND processar com o ACBr do servidor
                                         try {
-                                          const res = await axios.post('http://localhost:3333/api/fiscal/emit-acbr', { orderId: order.id });
+                                          const res = await api.post('/fiscal/emit-acbr', { orderId: order.id });
                                           alert(`Nota Autorizada via SERVIDOR ACBrLib! Chave: ${res.data.chave}`);
                                           fetchOrders();
                                         } catch (e) {
@@ -906,7 +906,7 @@ export default function Dashboard() {
                   formData.append('certificado', selectedFile);
                 }
 
-                await axios.post('http://localhost:3333/api/company/setup', formData, {
+                await api.post('/company/setup', formData, {
                   headers: { 'Content-Type': 'multipart/form-data' }
                 });
 

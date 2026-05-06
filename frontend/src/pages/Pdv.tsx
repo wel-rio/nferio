@@ -12,7 +12,7 @@ import {
   Banknote,
   X
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../services/api';
 import { pdvService } from '../services/pdvService';
 import './Pdv.css';
 
@@ -48,7 +48,7 @@ export default function Pdv() {
   const ipcRenderer = isElectron ? (window as any).require('electron').ipcRenderer : null;
 
   useEffect(() => {
-    axios.get('http://localhost:3333/api/products').then(res => setProducts(res.data));
+    api.get('/products').then(res => setProducts(res.data));
     searchInputRef.current?.focus();
 
     if (ipcRenderer) {

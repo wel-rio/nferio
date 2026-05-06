@@ -1,91 +1,156 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Wallet, Search, Filter, ArrowUpCircle, ArrowDownCircle, DollarSign, Calendar, TrendingUp, Edit } from 'lucide-react';
+import api from '../services/api';
+import { 
+  Wallet, 
+  Search, 
+  ArrowUpCircle, 
+  ArrowDownCircle, 
+  DollarSign, 
+  Calendar, 
+  TrendingUp, 
+  Edit,
+  CheckCircle,
+  AlertCircle
+} from 'lucide-react';
 
 export default function Finance() {
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'PAYABLE' | 'RECEIVABLE'>('PAYABLE');
+  const [data, setData] = useState<any[]>([]);
+  const [summary, setSummary] = useState({ totalPayable: 0, totalReceivable: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const fetchFinance = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('http://localhost:3333/api/finance/payables', {
-        params: { companyId: 'default-company-id' }
-      });
-      setTransactions(res.data);
+      const endpoint = activeTab === 'PAYABLE' ? 'payables' : 'receivables';
+      const [resData, resSummary] = await Promise.all([
+        api.get(`/finance/${endpoint}`),
+        api.get('/finance/summary')
+      ]);
+      setData(resData.data);
+      setSummary(resSummary.data);
     } catch (error) {
-      console.error('Erro ao buscar financeiro');
+      console.error('Erro ao buscar dados financeiros');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchFinance();
-  }, []);
+    fetchData();
+  }, [activeTab]);
 
-  const totalPayable = transactions.reduce((acc, curr) => acc + curr.amount, 0);
-  const totalPaid = transactions.filter(t => t.status === 'PAID').reduce((acc, curr) => acc + curr.amount, 0);
-  const totalPending = transactions.filter(t => t.status === 'PENDING').reduce((acc, curr) => acc + curr.amount, 0);
+  const filteredData = data.filter(item => 
+    (item.description || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="module-container animate-fade-in">
       <div className="module-header">
         <div>
-          <h2>Gestão Financeira e Fluxo de Caixa</h2>
-          <p className="text-muted">Controle de contas a pagar, receber e conciliação</p>
+          <h2>Gestão Financeira</h2>
+          <p className="text-muted">Controle total de entradas e saídas</p>
         </div>
         <div className="flex gap-2">
-          <button className="btn-secondary"><ArrowUpCircle size={18} /> Nova Receita</button>
-          <button className="btn-primary" style={{ background: 'var(--error)' }}><ArrowDownCircle size={18} /> Nova Despesa</button>
+          <button className="btn-secondary" onClick={() => setActiveTab('RECEIVABLE')}>
+            <ArrowUpCircle size={18} color="var(--success)" /> Novo Recebimento
+          </button>
+          <button className="btn-primary" style={{ background: 'var(--error)' }} onClick={() => setActiveTab('PAYABLE')}>
+            <ArrowDownCircle size={18} /> Novo Pagamento
+          </button>
         </div>
       </div>
 
+      {/* Indicadores Principais */}
       <div className="stats-row">
         <div className="stat-card glass-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <h3>Total a Pagar</h3>
-            <TrendingUp size={16} color="var(--error)" />
+            <h3>A Receber</h3>
+            <ArrowUpCircle size={16} color="var(--success)" />
           </div>
-          <p className="stat-value">R$ {totalPayable.toLocaleString('pt-BR')}</p>
-          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Pendentes: R$ {totalPending.toLocaleString('pt-BR')}</span>
+          <p className="stat-value text-success">R$ {summary.totalReceivable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Pendentes de entrada</span>
         </div>
+        
         <div className="stat-card glass-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <h3>Total Pago</h3>
-            <CheckCircle size={16} color="var(--success)" />
+            <h3>A Pagar</h3>
+            <ArrowDownCircle size={16} color="var(--error)" />
           </div>
-          <p className="stat-value text-success">R$ {totalPaid.toLocaleString('pt-BR')}</p>
+          <p className="stat-value text-error">R$ {summary.totalPayable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Pendentes de saída</span>
         </div>
+
         <div className="stat-card glass-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <h3>Saldo Projetado</h3>
             <DollarSign size={16} color="var(--accent-primary)" />
           </div>
-          <p className="stat-value text-accent">R$ {(15000 - totalPending).toLocaleString('pt-BR')}</p>
+          <p className={`stat-value ${summary.balance >= 0 ? 'text-accent' : 'text-error'}`}>
+            R$ {summary.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </p>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Resultado do mês</span>
         </div>
       </div>
 
-      <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
+      {/* Navegação por Abas */}
+      <div className="tabs-container" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <button 
+          className={`tab-btn ${activeTab === 'PAYABLE' ? 'active' : ''}`}
+          onClick={() => setActiveTab('PAYABLE')}
+          style={{
+            padding: '1rem 2rem',
+            background: 'none',
+            border: 'none',
+            color: activeTab === 'PAYABLE' ? 'var(--error)' : '#64748b',
+            borderBottom: activeTab === 'PAYABLE' ? '2px solid var(--error)' : 'none',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.2s'
+          }}
+        >
+          Contas a Pagar
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'RECEIVABLE' ? 'active' : ''}`}
+          onClick={() => setActiveTab('RECEIVABLE')}
+          style={{
+            padding: '1rem 2rem',
+            background: 'none',
+            border: 'none',
+            color: activeTab === 'RECEIVABLE' ? 'var(--success)' : '#64748b',
+            borderBottom: activeTab === 'RECEIVABLE' ? '2px solid var(--success)' : 'none',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.2s'
+          }}
+        >
+          Contas a Receber
+        </button>
+      </div>
+
+      {/* Filtros e Busca */}
+      <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="search-box" style={{ width: '400px' }}>
+          <div className="search-box" style={{ width: '100%' }}>
             <Search size={18} />
-            <input type="text" placeholder="Buscar por fornecedor ou descrição..." className="glass-input" />
-          </div>
-          <div className="flex gap-2">
-            <button className={`btn-secondary ${filter === 'ALL' ? 'active' : ''}`} onClick={() => setFilter('ALL')}>Todos</button>
-            <button className={`btn-secondary ${filter === 'PENDING' ? 'active' : ''}`} onClick={() => setFilter('PENDING')}>Pendentes</button>
-            <button className={`btn-secondary ${filter === 'PAID' ? 'active' : ''}`} onClick={() => setFilter('PAID')}>Pagos</button>
+            <input 
+              type="text" 
+              placeholder={`Buscar em ${activeTab === 'PAYABLE' ? 'Contas a Pagar' : 'Contas a Receber'}...`} 
+              className="glass-input" 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
       </div>
 
+      {/* Tabela de Dados */}
       <div className="table-container glass-panel">
         <table className="data-table">
           <thead>
             <tr>
-              <th>Descrição / Fornecedor</th>
+              <th>Descrição / Origem</th>
               <th>Vencimento</th>
               <th>Valor (R$)</th>
               <th>Status</th>
@@ -94,32 +159,42 @@ export default function Finance() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="empty-state">Carregando...</td></tr>
-            ) : transactions.length === 0 ? (
-              <tr><td colSpan={5} className="empty-state">Nenhuma conta encontrada.</td></tr>
+              <tr><td colSpan={5} className="empty-state">Carregando dados...</td></tr>
+            ) : filteredData.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="empty-state">
+                  <AlertCircle size={48} className="text-muted" style={{ margin: '0 auto 1rem' }} />
+                  <p>Nenhuma conta {activeTab === 'PAYABLE' ? 'a pagar' : 'a receber'} encontrada.</p>
+                </td>
+              </tr>
             ) : (
-              transactions.map(t => (
-                <tr key={t.id}>
+              filteredData.map(item => (
+                <tr key={item.id}>
                   <td>
-                    <div style={{ fontWeight: '600', color: 'white' }}>{t.description}</div>
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Ref: {t.nfeNumber || 'Manual'}</span>
+                    <div style={{ fontWeight: '600', color: 'white' }}>{item.description}</div>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                      {item.nfeNumber ? `NFe: ${item.nfeNumber}` : 'Lançamento Manual'}
+                    </span>
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Calendar size={14} color="#94a3b8" />
-                      {new Date(t.dueDate).toLocaleDateString('pt-BR')}
+                      {new Date(item.dueDate).toLocaleDateString('pt-BR')}
                     </div>
                   </td>
-                  <td style={{ fontWeight: '700' }}>R$ {t.amount.toLocaleString('pt-BR')}</td>
+                  <td style={{ fontWeight: '700', color: activeTab === 'PAYABLE' ? 'var(--error)' : 'var(--success)' }}>
+                    {activeTab === 'PAYABLE' ? '- ' : '+ '} 
+                    R$ {item.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </td>
                   <td>
                     <span style={{ 
                       padding: '4px 8px', 
                       borderRadius: '4px',
                       fontSize: '0.8rem',
-                      background: t.status === 'PAID' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                      color: t.status === 'PAID' ? 'var(--success)' : 'var(--error)'
+                      background: item.status === 'PAID' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                      color: item.status === 'PAID' ? 'var(--success)' : 'var(--error)'
                     }}>
-                      {t.status === 'PAID' ? 'PAGO' : 'PENDENTE'}
+                      {item.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}
                     </span>
                   </td>
                   <td>
@@ -134,16 +209,12 @@ export default function Finance() {
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
 
-// Re-using CheckCircle from lucide-react if needed or defining here
-function CheckCircle({ size, color }: { size: number, color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-      <polyline points="22 4 12 14.01 9 11.01"></polyline>
-    </svg>
+      <style>{`
+        .tab-btn:hover {
+          background: rgba(255,255,255,0.02) !important;
+        }
+      `}</style>
+    </div>
   );
 }
