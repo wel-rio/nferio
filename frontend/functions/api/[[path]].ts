@@ -29,9 +29,21 @@ export async function onRequest({ request, env, next }) {
     }
 
     const supabaseTable = tableMap[tableName];
-    const searchParams = url.search; // Pega tudo depois da "?"
     
-    // Proxy para o Supabase REST API (agora com parâmetros de busca)
+    // Tradução de Query Params (Transforma ?companyId=123 em ?companyId=eq.123)
+    // O Supabase REST exige o operador "eq." para filtros de igualdade.
+    const newParams = new URLSearchParams();
+    url.searchParams.forEach((value, key) => {
+      // Se já tiver operador (ponto), deixa como está, senão adiciona "eq."
+      if (value.includes('.') || key === 'select' || key === 'order') {
+        newParams.append(key, value);
+      } else {
+        newParams.append(key, `eq.${value}`);
+      }
+    });
+
+    const searchParams = newParams.toString() ? `?${newParams.toString()}` : '';
+    
     const supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/${supabaseTable}${searchParams}`, {
       method: request.method,
       headers: {
