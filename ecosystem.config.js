@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'nferio-backend',
-      script: 'npm',
-      args: 'run dev', // Ou 'start' se você já estiver usando a pasta /dist
+      script: 'xvfb-run',
+      args: '--auto-servernum --server-args="-screen 0 1024x768x24" npm run dev',
       cwd: './backend',
       env: {
         NODE_ENV: 'production',
@@ -13,7 +13,7 @@ module.exports = {
     {
       name: 'nferio-frontend',
       script: 'npm',
-      args: 'run dev', // Ou 'start' se estiver usando o build
+      args: 'run dev',
       cwd: './frontend',
       env: {
         NODE_ENV: 'production',
