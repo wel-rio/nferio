@@ -79,7 +79,85 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      <section className="about-section" style={{ padding: '5rem 5%', background: 'rgba(255,255,255,0.02)' }}>
+      </section>
+
+      {/* Marketing Section: Features Display */}
+      <section className="market-features" style={{ padding: '8rem 5%', background: 'linear-gradient(to bottom, transparent, rgba(15, 23, 42, 0.5))' }}>
+        <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
+          <h2 style={{ fontSize: '3rem', fontWeight: '800', marginBottom: '1.5rem', background: 'linear-gradient(to right, #fff, var(--accent-primary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            Tecnologia que Impulsiona sua Empresa
+          </h2>
+          <p style={{ color: '#94a3b8', fontSize: '1.2rem', maxWidth: '800px', margin: '0 auto' }}>
+            Não é apenas emissão fiscal. É um ecossistema completo desenhado para máxima performance e facilidade de uso.
+          </p>
+        </div>
+
+        <div className="market-grid" style={{ display: 'grid', gap: '4rem' }}>
+          
+          {/* Feature 1: PDV */}
+          <div className="market-item" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '4rem', alignItems: 'center' }}>
+            <div className="glass-panel" style={{ padding: '0.5rem', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+              <img src="/previews/pdv.png" alt="PDV Moderno" style={{ width: '100%', borderRadius: '20px', display: 'block' }} />
+            </div>
+            <div>
+              <div style={{ color: 'var(--accent-primary)', fontWeight: '700', marginBottom: '1rem', letterSpacing: '0.1em' }}>FRENTE DE CAIXA</div>
+              <h3 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '1.5rem' }}>PDV Blindado e Veloz</h3>
+              <p style={{ color: '#94a3b8', fontSize: '1.1rem', lineHeight: '1.8', marginBottom: '2rem' }}>
+                Venda em segundos com nossa interface otimizada. Sincronização em tempo real com estoque e financeiro, 
+                suporte a múltiplas formas de pagamento e emissão instantânea de NFC-e.
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '1rem', color: '#cbd5e1' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✅ Teclas de atalho para produtividade</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✅ Funcionamento Offline com Sincronia</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✅ Integração total com balanças e scanners</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Feature 2: Clientes (Inverted) */}
+          <div className="market-item" style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: '4rem', alignItems: 'center' }}>
+            <div>
+              <div style={{ color: '#10b981', fontWeight: '700', marginBottom: '1rem', letterSpacing: '0.1em' }}>CRM & GESTÃO</div>
+              <h3 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '1.5rem' }}>Cadastro de Clientes Inteligente</h3>
+              <p style={{ color: '#94a3b8', fontSize: '1.1rem', lineHeight: '1.8', marginBottom: '2rem' }}>
+                Conheça seu cliente de verdade. Histórico de compras, limites de crédito automatizados e 
+                integração com consulta de CNPJ/CPF direto da nuvem.
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '1rem', color: '#cbd5e1' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✅ Segmentação por perfil de compra</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✅ Controle de inadimplência em tempo real</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✅ Exportação de relatórios para marketing</li>
+              </ul>
+            </div>
+            <div className="glass-panel" style={{ padding: '0.5rem', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+              <img src="/previews/customers.png" alt="Gestão de Clientes" style={{ width: '100%', borderRadius: '20px', display: 'block' }} />
+            </div>
+          </div>
+
+          {/* Feature 3: Produtos */}
+          <div className="market-item" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '4rem', alignItems: 'center' }}>
+            <div className="glass-panel" style={{ padding: '0.5rem', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+              <img src="/previews/products.png" alt="Catálogo de Produtos" style={{ width: '100%', borderRadius: '20px', display: 'block' }} />
+            </div>
+            <div>
+              <div style={{ color: '#f59e0b', fontWeight: '700', marginBottom: '1rem', letterSpacing: '0.1em' }}>ESTOQUE & COMPRAS</div>
+              <h3 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '1.5rem' }}>Estoque Global e Dinâmico</h3>
+              <p style={{ color: '#94a3b8', fontSize: '1.1rem', lineHeight: '1.8', marginBottom: '2rem' }}>
+                Nunca perca uma venda por falta de produto. Controle de grades, números de série, validade 
+                e sugestão automática de compras baseada no giro de estoque.
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '1rem', color: '#cbd5e1' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✅ Leitura de XML de entrada automatizada</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✅ Ajuste de preços em massa</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✅ Relatórios de Curva ABC de produtos</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <section className="about-section" style={{ padding: '8rem 5%', background: 'rgba(255,255,255,0.02)' }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'center' }}>
           <div>
             <h2 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '1.5rem' }}>Poder de Gigante, Simplicidade de Startup</h2>
