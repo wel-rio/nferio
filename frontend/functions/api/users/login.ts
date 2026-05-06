@@ -5,7 +5,13 @@ export async function onRequestPost({ request, env }) {
     const SUPABASE_URL = env.SUPABASE_URL;
     const SUPABASE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // Chamando a função RPC que criamos no banco
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+       return new Response(JSON.stringify({ error: 'Erro de configuração: Chaves do Supabase não encontradas no Cloudflare' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/check_user_password`, {
       method: 'POST',
       headers: {
@@ -19,25 +25,29 @@ export async function onRequestPost({ request, env }) {
       })
     });
 
-    const users = await res.json();
-    const user = users[0];
+    if (!res.ok) {
+      const errorText = await res.text();
+      return new Response(JSON.stringify({ error: `Erro no Supabase: ${res.status}`, detail: errorText }), {
+        status: res.status,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-    if (!user) {
+    const users = await res.json();
+    
+    if (!users || users.length === 0) {
       return new Response(JSON.stringify({ error: 'Credenciais inválidas' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Adaptar formato para o frontend
+    const user = users[0];
     const company = user.company_data;
     const isExpired = company.trialEndsAt && new Date(company.trialEndsAt) < new Date();
 
     return new Response(JSON.stringify({
-      user: {
-        ...user,
-        company: company
-      },
+      user: { ...user, company: company },
       expired: isExpired
     }), {
       headers: { 
@@ -47,7 +57,7 @@ export async function onRequestPost({ request, env }) {
     });
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Erro no servidor central' }), {
+    return new Response(JSON.stringify({ error: 'Erro crítico no Edge', detail: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
