@@ -1,0 +1,9 @@
+node_modules/
+.env
+dist/
+build/
+*.log
+acbr/lib/*.dll
+acbr/lib/*.so
+acbr/logs/
+acbr/acbrlib.ini

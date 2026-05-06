@@ -22,7 +22,7 @@ router.post('/emit-acbr', async (req, res) => {
 
     // 2. Chama a lógica de emissão (Simulada para funcionar sem DLL agora)
     // No ambiente real, aqui chamamos o acbrService que interage com a DLL
-    const result = await acbrService.emitNFe("CONTEUDO_TXT_AQUI");
+    const result = await acbrService.emitirNFe("CONTEUDO_TXT_AQUI");
 
     // 3. Atualiza o pedido para FATURADO
     await prisma.order.update({

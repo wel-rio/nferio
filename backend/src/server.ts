@@ -8,6 +8,8 @@ import userRoutes from './routes/users';
 import financeRoutes from './routes/finance';
 import configRoutes from './routes/config';
 
+import { acbrService } from './services/acbrService';
+
 dotenv.config();
 
 const app = express();
@@ -26,6 +28,15 @@ app.use('/api/fiscal', fiscalRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/config', configRoutes);
+
+// Inicializa a ACBrLib ao subir o servidor
+acbrService.checkEnvironment().then(ready => {
+  if (ready) {
+    console.log('🚀 ACBrLib pronta para uso no backend.');
+  } else {
+    console.warn('⚠️ Backend iniciado, mas ACBrLib NÃO está disponível.');
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
