@@ -8,6 +8,18 @@ export async function onRequest({ request, env, next }) {
   const SUPABASE_URL = env.SUPABASE_URL;
   const SUPABASE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
 
+  // Handle CORS Pre-flight (Essencial para rodar no localhost)
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+
   try {
     // Mapeamento simples de Rota -> Tabela
     // Ex: /api/products -> Tabela "Product"
@@ -60,7 +72,9 @@ export async function onRequest({ request, env, next }) {
     return new Response(JSON.stringify(data), {
       headers: { 
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey'
       }
     });
 
