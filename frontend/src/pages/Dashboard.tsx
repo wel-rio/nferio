@@ -12,7 +12,7 @@ import {
   Inbox,
   UserCheck,
   Plus,
-  Users,
+  Users as UsersIcon,
   Wallet,
   Save,
   ShieldCheck,
@@ -329,7 +329,7 @@ export default function Dashboard() {
 
           {hasPermission('customers') && (
             <button className={`nav-item ${activeTab === 'customers' ? 'active' : ''}`} onClick={() => setActiveTab('customers')}>
-              <Users size={20} /> <span>Clientes / Fornec.</span>
+              <UsersIcon size={20} /> <span>Clientes / Fornec.</span>
             </button>
           )}
 
