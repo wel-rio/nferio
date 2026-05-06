@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import fiscalRoutes from './routes/fiscal';
+import universalFiscalRoutes from './routes/universal_fiscal';
 import { acbrService } from './services/acbrService';
 
 dotenv.config();
@@ -29,8 +30,11 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
-// A única rota que o VPS vai processar a partir de agora
+// Rotas do projeto NFERIO
 app.use('/api/fiscal', fiscalRoutes);
+
+// Rotas da API UNIVERSAL (Para outros projetos)
+app.use('/api/v1/nfe', universalFiscalRoutes);
 
 // Inicializa a ACBrLib ao subir o servidor
 acbrService.checkEnvironment().then(ready => {

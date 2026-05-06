@@ -131,6 +131,31 @@ router.post('/emit-acbr', async (req, res) => {
   }
 });
 
+// Validar NFe (Apenas gera o XML, assina e valida regras, sem enviar)
+router.post('/validate-acbr', async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: { include: { product: true } } }
+    });
+    const company = await prisma.company.findFirst();
+
+    if (!order || !company) {
+      return res.status(404).json({ error: 'Dados insuficientes' });
+    }
+
+    const { acbrConverter } = require('../utils/acbrConverter');
+    const iniContent = acbrConverter.orderToIni(order, company);
+    
+    // Chamando uma nova função de validação que vamos criar no acbrService
+    const result = await acbrService.validarNFe(iniContent, company);
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Erro ao validar via ACBrLib', details: error.message });
+  }
+});
+
 // Rota de Teste Rápido (Acessível via Navegador)
 router.get('/test-acbr', async (req, res) => {
   try {

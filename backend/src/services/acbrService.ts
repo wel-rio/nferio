@@ -168,5 +168,36 @@ export const acbrService = {
         timestamp: new Date().toISOString()
       };
     }
+  },
+  /**
+   * Apenas valida a NFe sem enviar
+   */
+  async validarNFe(dados: string, company: any): Promise<any> {
+    try {
+      if (!this.private.functions.NFE_CarregarINI) throw new Error("Biblioteca não inicializada");
+      await this.configurarEmpresa(company);
+
+      let res = this.private.functions.NFE_CarregarINI(dados);
+      if (res !== 0) throw new Error(`Erro ao carregar dados: ${res}`);
+
+      res = this.private.functions.NFE_Assinar();
+      if (res !== 0) throw new Error(`Erro ao assinar: ${res}`);
+
+      res = this.private.functions.NFE_Validar();
+      
+      const buffer = Buffer.alloc(1024);
+      const size = new Int32Array([1024]);
+      this.private.functions.NFE_UltimoRetorno(buffer, size);
+      const resposta = buffer.toString('utf8').replace(/\0/g, '').trim();
+
+      return {
+        success: res === 0,
+        code: res,
+        message: res === 0 ? "Nota validada com sucesso!" : "Erro na validação",
+        detalhes: resposta
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   }
 };

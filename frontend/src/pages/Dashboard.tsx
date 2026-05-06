@@ -595,36 +595,56 @@ export default function Dashboard() {
                                   </button>
                                 )}
                                 {order.status === 'PEDIDO' && (
-                                  <button 
-                                    className="btn-primary" 
-                                    style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                                    onClick={async () => {
-                                      const { sefazService } = await import('../services/sefazService');
-                                      const items = order.items.map((i: any) => ({ ...i.product, quantity: i.quantity }));
-                                      const txt = sefazService.generateNFeTxt(order, companyConfig, items);
-                                      const isElectron = window.hasOwnProperty('process');
-                                      if (isElectron) {
-                                        const ipc = (window as any).require('electron').ipcRenderer;
-                                        ipc.send('emit-nfe', { txtContent: txt });
-                                        ipc.once('nfe-success', async (event: any, res: any) => {
-                                          alert(`Nota Autorizada via ACBrLib LOCAL! Chave: ${res.chave}`);
-                                          await api.post(`/orders/${order.id}/convert`);
-                                          fetchOrders();
-                                        });
-                                      } else {
-                                        // 2b. Se for WEB, envia para o BACKEND processar com o ACBr do servidor
+                                  <div className="flex gap-2">
+                                    <button 
+                                      className="btn-secondary" 
+                                      style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                                      onClick={async () => {
                                         try {
-                                          const res = await fiscalApi.post('/fiscal/emit-acbr', { orderId: order.id });
-                                          alert(`Nota Autorizada via SERVIDOR ACBrLib! Chave: ${res.data.chave}`);
-                                          fetchOrders();
+                                          const res = await fiscalApi.post('/fiscal/validate-acbr', { orderId: order.id });
+                                          if (res.data.success) {
+                                            alert("✅ Nota Válida! Pronta para emissão.");
+                                          } else {
+                                            alert(`❌ Erro na Validação: ${res.data.detalhes || res.data.error}`);
+                                          }
                                         } catch (e) {
-                                          alert('Erro ao emitir via Servidor ACBr. Certifique-se que o servidor possui as DLLs instaladas.');
+                                          alert('Erro ao comunicar com o Servidor Fiscal.');
                                         }
-                                      }
-                                    }}
-                                  >
-                                    Emitir NFe (ACBrLib)
-                                  </button>
+                                      }}
+                                    >
+                                      Validar
+                                    </button>
+                                    <button 
+                                      className="btn-primary" 
+                                      style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                                      onClick={async () => {
+                                        const { sefazService } = await import('../services/sefazService');
+                                        const items = order.items.map((i: any) => ({ ...i.product, quantity: i.quantity }));
+                                        const txt = sefazService.generateNFeTxt(order, companyConfig, items);
+                                        const isElectron = window.hasOwnProperty('process');
+                                        if (isElectron) {
+                                          const ipc = (window as any).require('electron').ipcRenderer;
+                                          ipc.send('emit-nfe', { txtContent: txt });
+                                          ipc.once('nfe-success', async (event: any, res: any) => {
+                                            alert(`Nota Autorizada via ACBrLib LOCAL! Chave: ${res.chave}`);
+                                            await api.post(`/orders/${order.id}/convert`);
+                                            fetchOrders();
+                                          });
+                                        } else {
+                                          // 2b. Se for WEB, envia para o BACKEND processar com o ACBr do servidor
+                                          try {
+                                            const res = await fiscalApi.post('/fiscal/emit-acbr', { orderId: order.id });
+                                            alert(`Nota Autorizada via SERVIDOR ACBrLib! Chave: ${res.data.chave}`);
+                                            fetchOrders();
+                                          } catch (e) {
+                                            alert('Erro ao emitir via Servidor ACBr. Certifique-se que o servidor possui as DLLs instaladas.');
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      Emitir NFe (ACBrLib)
+                                    </button>
+                                  </div>
                                 )}
                                 {order.status === 'FATURADO' && (
                                   <span className="text-muted" style={{ fontSize: '0.8rem' }}>Nota Emitida</span>
