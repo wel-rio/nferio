@@ -312,7 +312,7 @@ export default function Dashboard() {
           )}
 
           {hasPermission('inbound') && (
-            <button className={`nav-item ${activeTab === 'entrada' ? 'active' : ''}`} onClick={() => setActiveTab('entrada')}>
+            <button className={`nav-item ${activeTab === 'inbound' ? 'active' : ''}`} onClick={() => setActiveTab('inbound')}>
               <FileDown size={20} /> <span>Entrada (XML)</span>
             </button>
           )}
@@ -342,7 +342,7 @@ export default function Dashboard() {
           )}
 
           {hasPermission('users') && (
-            <button className={`nav-item ${activeTab === 'usuarios' ? 'active' : ''}`} onClick={() => setActiveTab('usuarios')}>
+            <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
               <Shield size={20} /> <span>Gerenciar Equipe</span>
             </button>
           )}
@@ -707,94 +707,6 @@ export default function Dashboard() {
             );
           })()}
 
-          {activeTab === 'recebimentos' && (
-            <div className="module-container animate-fade-in">
-              <div className="module-header">
-                <h2>Notas Fiscais Recebidas (Entradas)</h2>
-                <div className="header-actions">
-                  <span className="text-muted" style={{ fontSize: '0.9rem' }}>Consulte e importe notas de entrada automaticamente</span>
-                </div>
-              </div>
-
-              <div className="stats-row">
-                <div className="stat-card glass-panel">
-                  <h3>Notas este Mês</h3>
-                  <p className="stat-value">12</p>
-                </div>
-                <div className="stat-card glass-panel">
-                  <h3>Aguardando Manifesto</h3>
-                  <p className="stat-value text-warning">3</p>
-                </div>
-                <div className="stat-card glass-panel">
-                  <h3>Total em Compras</h3>
-                  <p className="stat-value text-accent">R$ 15.420,00</p>
-                </div>
-              </div>
-
-              <div className="table-container glass-panel">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Emissor / Fornecedor</th>
-                      <th>CNPJ</th>
-                      <th>Data Emissão</th>
-                      <th>Valor (R$)</th>
-                      <th>Status SEFAZ</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { id: '1', emitter: 'DISTRIBUIDORA DE BEBIDAS ALFA', cnpj: '11.222.333/0001-44', date: '2026-04-28', value: 2450.00, status: 'Ciência da Operação' },
-                      { id: '2', emitter: 'SUPERMERCADO BETA LTDA', cnpj: '55.666.777/0001-88', date: '2026-04-29', value: 890.50, status: 'Aguardando' },
-                      { id: '3', emitter: 'ATACADO GAMA S/A', cnpj: '99.000.111/0001-22', date: '2026-05-01', value: 5600.00, status: 'Confirmada' },
-                    ].map(nfe => (
-                      <tr key={nfe.id}>
-                        <td>{nfe.emitter}</td>
-                        <td>{nfe.cnpj}</td>
-                        <td>{new Date(nfe.date).toLocaleDateString('pt-BR')}</td>
-                        <td>{nfe.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                        <td>
-                          <span style={{ 
-                            padding: '4px 8px', 
-                            borderRadius: '4px',
-                            background: nfe.status === 'Aguardando' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                            color: nfe.status === 'Aguardando' ? 'var(--warning)' : 'var(--success)'
-                          }}>
-                            {nfe.status}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="flex gap-2">
-                            <button className="icon-btn" title="Manifestar Ciência" onClick={() => alert('Ciência da Operação enviada para a SEFAZ!')}>
-                              <ReceiptText size={18} />
-                            </button>
-                            <button className="icon-btn" title="Importar (Estoque + Financeiro)" onClick={() => {
-                              setSelectedNfeData({
-                                nfeNumber: nfe.id + '99',
-                                nfeKey: 'KEY' + nfe.cnpj,
-                                totalAmount: nfe.value,
-                                supplier: { name: nfe.emitter, cnpj: nfe.cnpj },
-                                items: [{ externalName: 'PRODUTO FORNECEDOR ' + nfe.id, quantity: 1, price: nfe.value }],
-                                installments: [{ number: 1, dueDate: '2026-06-01', amount: nfe.value }]
-                              });
-                              setIsNfeEntryOpen(true);
-                            }}>
-                              <Plus size={18} color="var(--success)" />
-                            </button>
-                            <button className="icon-btn" title="Baixar XML">
-                              <Inbox size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
           {isNfeEntryOpen && selectedNfeData && (
             <NFeEntryModal 
               nfeData={selectedNfeData}
@@ -807,93 +719,11 @@ export default function Dashboard() {
             />
           )}
 
-          {activeTab === 'users' && (() => {
-            return (
-              <div className="module-container animate-fade-in">
-                <div className="module-header">
-                  <h2>Gestão de Funcionários e Acessos</h2>
-                  <button className="btn-primary" onClick={() => setIsUserModalOpen(true)}>
-                    <Users size={18} /> Novo Funcionário
-                  </button>
-                </div>
-
-                <div className="stats-row">
-                  <div className="stat-card glass-panel">
-                    <h3>Total de Usuários</h3>
-                    <p className="stat-value">{users.length}</p>
-                  </div>
-                </div>
-
-                <div className="table-container glass-panel">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Nome</th>
-                        <th>E-mail</th>
-                        <th>Perfil</th>
-                        <th>Telas Autorizadas</th>
-                        <th>Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="empty-state">
-                            <Users size={48} className="text-muted" style={{ margin: '0 auto 1rem' }} />
-                            <p>Nenhum funcionário cadastrado.</p>
-                          </td>
-                        </tr>
-                      ) : (
-                        users.map((u: any) => (
-                          <tr key={u.id}>
-                            <td>{u.name}</td>
-                            <td>{u.email}</td>
-                            <td>
-                              <span style={{ 
-                                padding: '4px 8px', 
-                                borderRadius: '4px',
-                                background: u.role === 'ADMIN' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                color: u.role === 'ADMIN' ? 'var(--accent-primary)' : 'var(--success)'
-                              }}>
-                                {u.role}
-                              </span>
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '250px' }}>
-                                {(u.permissions === 'all' ? 'Tudo' : u.permissions || '').split(',').map((p: string) => (
-                                  <span key={p} style={{ fontSize: '0.65rem', padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', textTransform: 'capitalize' }}>
-                                    {p}
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                            <td>
-                              <button className="icon-btn" title="Editar">
-                                <Plus size={18} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {isUserModalOpen && (
-                  <UserModal 
-                    onClose={() => setIsUserModalOpen(false)} 
-                    onSuccess={fetchUsers} 
-                  />
-                )}
-              </div>
-            );
-          })()}
-
           {activeTab === 'customers' && <Customers />}
           {activeTab === 'financeiro' && <Finance />}
           {activeTab === 'reports' && <Reports />}
-          {activeTab === 'usuarios' && <Users />}
-          {activeTab === 'entrada' && <Inbound />}
+          {activeTab === 'users' && <Users />}
+          {activeTab === 'inbound' && <Inbound />}
           {activeTab === 'admin' && <AdminMaster />}
 
           {activeTab === 'config' && (() => {
@@ -998,7 +828,7 @@ export default function Dashboard() {
                       </div>
                       <div className="form-group">
                         <label>Regime Tributário (CRT)</label>
-                        <select className="glass-input" value={companyConfig.crt}
+                        <select className="glass-input" value={companyConfig.crt || '1'}
                           onChange={(e) => setCompanyConfig({...companyConfig, crt: e.target.value})}>
                           <option value="1">Simples Nacional</option>
                           <option value="2">Simples Nacional (Excesso)</option>
@@ -1139,7 +969,7 @@ export default function Dashboard() {
             );
           })()}
 
-          {activeTab !== 'config' && activeTab !== 'products' && activeTab !== 'sales' && activeTab !== 'recebimentos' && activeTab !== 'fiscal' && activeTab !== 'users' && activeTab !== 'financeiro' && (
+          {!['dashboard', 'products', 'sales', 'fiscal', 'inbound', 'customers', 'financeiro', 'reports', 'users', 'admin', 'config'].includes(activeTab) && (
             <div className="placeholder-card glass-panel">
               <Settings size={48} className="text-muted" />
               <h3>Módulo em Desenvolvimento</h3>
