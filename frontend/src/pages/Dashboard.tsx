@@ -601,7 +601,7 @@ export default function Dashboard() {
                                       style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                                       onClick={async () => {
                                         try {
-                                          const res = await fiscalApi.post('/fiscal/validate-acbr', { orderId: order.id });
+                                          const res = await fiscalApi.post('/fiscal/validate-acbr', { order, company: companyConfig });
                                           if (res.data.success) {
                                             alert("✅ Nota Válida! Pronta para emissão.");
                                           } else {
@@ -633,7 +633,7 @@ export default function Dashboard() {
                                         } else {
                                           // 2b. Se for WEB, envia para o BACKEND processar com o ACBr do servidor
                                           try {
-                                            const res = await fiscalApi.post('/fiscal/emit-acbr', { orderId: order.id });
+                                            const res = await fiscalApi.post('/fiscal/emit-acbr', { order, company: companyConfig });
                                             alert(`Nota Autorizada via SERVIDOR ACBrLib! Chave: ${res.data.chave}`);
                                             fetchOrders();
                                           } catch (e) {
