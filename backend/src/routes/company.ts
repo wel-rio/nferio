@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import multer from 'multer';
 import path from 'path';
@@ -16,10 +16,10 @@ if (!fs.existsSync(certDir)) {
 }
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (req: Request, file: Express.Multer.File, cb) => {
     cb(null, certDir);
   },
-  filename: (req, file, cb) => {
+  filename: (req: Request, file: Express.Multer.File, cb) => {
     // Salva com o ID da empresa para evitar conflitos
     const companyId = req.body.companyId || 'default';
     cb(null, `cert_${companyId}${path.extname(file.originalname)}`);
@@ -31,7 +31,7 @@ const upload = multer({ storage });
 /**
  * Rota para atualizar dados da empresa e upload de certificado
  */
-router.post('/setup', upload.single('certificado'), async (req, res) => {
+router.post('/setup', upload.single('certificado'), async (req: Request, res: Response) => {
   try {
     const { 
       companyId, 
