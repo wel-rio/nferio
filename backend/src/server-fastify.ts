@@ -65,20 +65,27 @@ fastify.post('/api/fiscal/emit-stateless', { preHandler: [(fastify as any).authe
   }
 });
 
-// Rota de Teste de Certificado (Vencimento)
-fastify.post('/api/fiscal/cert-check', { preHandler: [(fastify as any).authenticate] }, async (request: any, reply) => {
+// Nova rota para pegar informações do certificado (vencimento) sem salvar nada
+fastify.post('/api/fiscal/cert-info', { preHandler: [(fastify as any).authenticate] }, async (request: any, reply) => {
   const parts = request.body;
   try {
     const company = JSON.parse(parts.company.value);
     const certFile = parts.certificado;
     
-    if (!certFile) throw new Error("Certificado PFX não enviado");
-
-    const vencimento = await acbrService.getCertDate(company, certFile.toBuffer());
-    return { success: true, vencimento };
+    return await acbrService.runSafe(company, certFile.toBuffer(), async () => {
+      const buffer = Buffer.alloc(256);
+      const size = new Int32Array([256]);
+      acbrService.functions.NFE_ObterCertificadoDataVencimento(buffer, size);
+      return { success: true, expiration: buffer.toString('utf8').replace(/\0/g, '').trim() };
+    });
   } catch (error: any) {
     return reply.status(500).send({ success: false, error: error.message });
   }
+});
+
+// Rota de compatibilidade para a tela de Configurações (apenas retorna OK, pois agora é stateless)
+fastify.post('/api/fiscal/config', { preHandler: [(fastify as any).authenticate] }, async (request, reply) => {
+  return { success: true, message: 'Configuração stateless processada com sucesso' };
 });
 
 // Início do Servidor

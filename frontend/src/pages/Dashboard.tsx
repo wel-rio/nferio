@@ -23,7 +23,8 @@ import {
   FileText
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import api, { fiscalApi } from '../services/api';
+import api, { fiscalApi, FISCAL_URL } from '../services/api';
+import { supabase } from '../lib/supabase';
 import ProductModal from '../components/ProductModal';
 import StockAdjustmentModal from '../components/StockAdjustmentModal';
 import OrderModal from '../components/OrderModal';
@@ -633,9 +634,13 @@ export default function Dashboard() {
                                           
                                           if (selectedFile) {
                                             formData.append('certificado', selectedFile);
+                                          } else if (companyConfig.certificado_url) {
+                                            // Busca o certificado do Supabase Storage
+                                            const certRes = await fetch(companyConfig.certificado_url);
+                                            const certBlob = await certRes.blob();
+                                            formData.append('certificado', certBlob, 'certificado.pfx');
                                           } else {
-                                            alert('Selecione o certificado (.pfx) na aba Configurações primeiro!');
-                                            setTab('settings');
+                                            alert('Certificado não configurado. Vá em Configurações primeiro!');
                                             return;
                                           }
 
@@ -765,42 +770,85 @@ export default function Dashboard() {
             const handleSaveConfig = async () => {
               setConfigLoading(true);
               try {
-                const formData = new FormData();
-                formData.append('companyId', companyConfig.id || '');
-                formData.append('razaoSocial', companyConfig.razaoSocial);
-                formData.append('cnpj', companyConfig.cnpj);
-                formData.append('inscricaoEstadual', companyConfig.inscricaoEstadual);
-                formData.append('municipio', companyConfig.municipio);
-                formData.append('uf', companyConfig.uf);
-                formData.append('codigoIbge', companyConfig.codigoIbge || '');
-                formData.append('crt', companyConfig.crt || '1');
-                formData.append('senhaCertificado', companyConfig.senhaCertificado || '');
-                formData.append('logradouro', companyConfig.logradouro || '');
-                formData.append('numero', companyConfig.numero || '');
-                formData.append('bairro', companyConfig.bairro || '');
-                formData.append('cep', companyConfig.cep || '');
-                formData.append('telefone', companyConfig.telefone || '');
-                formData.append('cscId', companyConfig.cscId || '');
-                formData.append('cscKey', companyConfig.cscKey || '');
-                formData.append('nfeSerie', String(companyConfig.nfeSerie || 1));
-                formData.append('nfeNextNumber', String(companyConfig.nfeNextNumber || 1));
-                formData.append('nfceSerie', String(companyConfig.nfceSerie || 1));
-                formData.append('nfceNextNumber', String(companyConfig.nfceNextNumber || 1));
-                
+                let certificadoUrl = companyConfig.certificadoUrl;
+                let validadeCertificado = companyConfig.validadeCertificado;
+
+                // 1. Upload do Certificado para o Supabase Storage (se houver novo arquivo)
                 if (selectedFile) {
+                  const fileExt = selectedFile.name.split('.').pop();
+                  const fileName = `${companyConfig.cnpj}_${Date.now()}.${fileExt}`;
+                  const filePath = `certificados/${fileName}`;
+
+                  const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('certificados-a1')
+                    .upload(filePath, selectedFile);
+
+                  if (uploadError) throw uploadError;
+
+                  const { data: { publicUrl } } = supabase.storage
+                    .from('certificados-a1')
+                    .getPublicUrl(filePath);
+                  
+                  certificadoUrl = publicUrl;
+
+                  // 2. Consultar validade na VPS (Stateless)
+                  const formData = new FormData();
                   formData.append('certificado', selectedFile);
+                  formData.append('company', JSON.stringify({ ...companyConfig }));
+
+                  const { data: { session } } = await supabase.auth.getSession();
+                  
+                  const certInfoRes = await fetch(`${FISCAL_URL}/cert-info`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${session?.access_token}` },
+                    body: formData
+                  });
+
+                  if (certInfoRes.ok) {
+                    const certInfo = await certInfoRes.json();
+                    if (certInfo.success) {
+                      validadeCertificado = certInfo.expiration;
+                    }
+                  }
                 }
 
-                // Agora envia para a VPS (fiscalApi)
-                await fiscalApi.post('/company/setup', formData, {
-                  headers: { 'Content-Type': 'multipart/form-data' }
-                });
+                // 3. Salvar no Banco de Dados (Supabase)
+                const { error: dbError } = await supabase
+                  .from('empresas')
+                  .update({
+                    razao_social: companyConfig.razaoSocial,
+                    cnpj: companyConfig.cnpj,
+                    inscricao_estadual: companyConfig.inscricaoEstadual,
+                    municipio: companyConfig.municipio,
+                    uf: companyConfig.uf,
+                    codigo_ibge: companyConfig.codigoIbge,
+                    crt: companyConfig.crt,
+                    logradouro: companyConfig.logradouro,
+                    numero: companyConfig.numero,
+                    bairro: companyConfig.bairro,
+                    cep: companyConfig.cep,
+                    telefone: companyConfig.telefone,
+                    csc_id: companyConfig.cscId,
+                    csc_key: companyConfig.cscKey,
+                    nfe_serie: companyConfig.nfeSerie,
+                    nfe_next_number: companyConfig.nfeNextNumber,
+                    nfce_serie: companyConfig.nfceSerie,
+                    nfce_next_number: companyConfig.nfceNextNumber,
+                    ambiente: companyConfig.ambiente,
+                    senha_certificado: companyConfig.senhaCertificado,
+                    certificado_url: certificadoUrl,
+                    validade_certificado: validadeCertificado,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', companyConfig.id);
 
-                alert('Configurações e Certificado salvos com sucesso na VPS!');
+                if (dbError) throw dbError;
+
+                alert('Configurações salvas com sucesso no Supabase!');
                 fetchConfig();
-              } catch (error) {
+              } catch (error: any) {
                 console.error(error);
-                alert('Erro ao salvar configurações');
+                alert('Erro ao salvar configurações: ' + error.message);
               } finally {
                 setConfigLoading(false);
               }
