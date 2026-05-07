@@ -625,31 +625,39 @@ export default function Dashboard() {
                                       className="btn-primary" 
                                       style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                                       onClick={async () => {
-                                        const { sefazService } = await import('../services/sefazService');
-                                        const items = order.items.map((i: any) => ({ ...i.product, quantity: i.quantity }));
-                                        const txt = sefazService.generateNFeTxt(order, companyConfig, items);
-                                        const isElectron = window.hasOwnProperty('process');
-                                        if (isElectron) {
-                                          const ipc = (window as any).require('electron').ipcRenderer;
-                                          ipc.send('emit-nfe', { txtContent: txt });
-                                          ipc.once('nfe-success', async (event: any, res: any) => {
-                                            alert(`Nota Autorizada via ACBrLib LOCAL! Chave: ${res.chave}`);
-                                            await api.post(`/orders/${order.id}/convert`);
-                                            fetchOrders();
-                                          });
-                                        } else {
-                                          // 2b. Se for WEB, envia para o BACKEND processar com o ACBr do servidor
-                                          try {
-                                            const res = await fiscalApi.post('/fiscal/emit-acbr', { order, company: companyConfig });
-                                            alert(`Nota Autorizada via SERVIDOR ACBrLib! Chave: ${res.data.chave}`);
-                                            fetchOrders();
-                                          } catch (e) {
-                                            alert('Erro ao emitir via Servidor ACBr. Certifique-se que o servidor possui as DLLs instaladas.');
+                                        try {
+                                          setLoading(true);
+                                          const formData = new FormData();
+                                          formData.append('order', JSON.stringify(order));
+                                          formData.append('company', JSON.stringify(companyConfig));
+                                          
+                                          if (selectedFile) {
+                                            formData.append('certificado', selectedFile);
+                                          } else {
+                                            alert('Selecione o certificado (.pfx) na aba Configurações primeiro!');
+                                            setTab('settings');
+                                            return;
                                           }
+
+                                          const res = await fiscalApi.post('/emit-stateless', formData);
+                                          
+                                          if (res.data.success) {
+                                            alert('Nota Autorizada com Sucesso!');
+                                            // Abre o DANFE
+                                            const { danfeGenerator } = await import('../utils/danfeGenerator');
+                                            danfeGenerator.generate(res.data.retorno);
+                                            fetchOrders();
+                                          } else {
+                                            alert('Erro na Emissão: ' + res.data.error);
+                                          }
+                                        } catch (error: any) {
+                                          alert('Erro na comunicação com a VPS Fiscal: ' + error.message);
+                                        } finally {
+                                          setLoading(false);
                                         }
                                       }}
                                     >
-                                      Emitir NFe (ACBrLib)
+                                      Emitir NFe (Stateless)
                                     </button>
                                   </div>
                                 )}
