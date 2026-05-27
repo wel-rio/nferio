@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { FileDown, Search, Filter, Calendar, Package, ArrowDownLeft } from 'lucide-react';
 import NFeEntryModal from '../components/NFeEntryModal';
@@ -14,9 +13,16 @@ export default function Inbound() {
     if (!company) return;
     try {
       setLoading(true);
-      // Reutilizando a rota de financeiro para mostrar as notas a pagar
-      const res = await api.get('/finance/payables', { params: { companyId: company.id } });
-      setHistory(res.data.filter((i: any) => i.nfeKey)); // Filtra apenas as que têm chave de nota
+      const { data, error } = await supabase
+        .from('AccountPayable')
+        .select('*')
+        .eq('companyId', company.id)
+        .not('description', 'is', null);
+
+      if (data) {
+        // Filtra as que parecem ser de entrada de NFe pelo padrão da descrição
+        setHistory(data.filter((i: any) => i.description.includes('NFe')));
+      }
     } catch (error) {
       console.error('Erro ao buscar histórico de entradas', error);
     } finally {

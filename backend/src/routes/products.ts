@@ -76,7 +76,7 @@ router.post('/', async (req: Request, res: Response) => {
  */
 router.post('/:id/stock', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { type, quantity, reason, companyId } = req.body;
 
     const qty = Number(quantity);

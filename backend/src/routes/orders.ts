@@ -119,7 +119,7 @@ router.post('/', async (req: Request, res: Response) => {
  */
 router.post('/:id/convert', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     
     const order = await prisma.order.findUnique({
       where: { id },
@@ -136,7 +136,7 @@ router.post('/:id/convert', async (req: Request, res: Response) => {
     });
 
     // Baixa estoque e gera financeiro na conversão
-    for (const item of order.items) {
+    for (const item of (order as any).items) {
       await prisma.product.update({
         where: { id: item.productId },
         data: { stock: { decrement: item.quantity } }

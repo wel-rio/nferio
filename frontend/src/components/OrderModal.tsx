@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShoppingCart, Plus, Trash2, Search } from 'lucide-react';
-import api from '../services/api';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 interface OrderModalProps {
@@ -16,9 +16,18 @@ export default function OrderModal({ onClose, onSuccess }: OrderModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    if (company) {
-      api.get('/products', { params: { companyId: company.id } }).then(res => setProducts(res.data));
+    async function loadProducts() {
+      if (company) {
+        const { data, error } = await supabase
+          .from('Product')
+          .select('*')
+          .eq('companyId', company.id)
+          .order('name');
+        
+        if (data) setProducts(data);
+      }
     }
+    loadProducts();
   }, [company]);
 
   const addItem = (product: any) => {
@@ -42,17 +51,41 @@ export default function OrderModal({ onClose, onSuccess }: OrderModalProps) {
     if (selectedItems.length === 0) return alert('Adicione pelo menos um item');
     
     try {
-      await api.post('/orders', {
-        customerName,
-        items: selectedItems,
-        total,
-        status: 'ORCAMENTO',
-        companyId: company.id
-      });
+      // 1. Criar o Pedido (Order)
+      const { data: orderData, error: orderError } = await supabase
+        .from('Order')
+        .insert([{
+          customerName,
+          totalAmount: total,
+          netAmount: total,
+          status: 'ORCAMENTO',
+          companyId: company.id
+        }])
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // 2. Criar os Itens (OrderItem)
+      const itemsToInsert = selectedItems.map(item => ({
+        orderId: orderData.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        totalPrice: item.price * item.quantity
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('OrderItem')
+        .insert(itemsToInsert);
+
+      if (itemsError) throw itemsError;
+
       onSuccess();
       onClose();
-    } catch (error) {
-      alert('Erro ao salvar pedido');
+    } catch (error: any) {
+      console.error(error);
+      alert('Erro ao salvar pedido: ' + error.message);
     }
   };
 

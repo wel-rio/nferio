@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { 
   Wallet, 
@@ -26,17 +26,45 @@ export default function Finance() {
     if (!company) return;
     try {
       setLoading(true);
-      const endpoint = activeTab === 'PAYABLE' ? 'payables' : 'receivables';
-      const [resData, resSummary] = await Promise.all([
-        api.get(`/finance/${endpoint}`, { params: { companyId: company.id } }),
-        api.get('/finance/summary', { params: { companyId: company.id } })
+      const table = activeTab === 'PAYABLE' ? 'AccountPayable' : 'AccountReceivable';
+      
+      const [resItems, resPayables, resReceivables] = await Promise.all([
+        supabase.from(table).select('*').eq('companyId', company.id).order('dueDate'),
+        supabase.from('AccountPayable').select('amount').eq('companyId', company.id).eq('status', 'PENDENTE'),
+        supabase.from('AccountReceivable').select('amount').eq('companyId', company.id).eq('status', 'PENDENTE')
       ]);
-      setData(resData.data);
-      setSummary(resSummary.data);
+
+      if (resItems.data) setData(resItems.data);
+      
+      const totalPayable = (resPayables.data || []).reduce((acc, i) => acc + i.amount, 0);
+      const totalReceivable = (resReceivables.data || []).reduce((acc, i) => acc + i.amount, 0);
+      
+      setSummary({
+        totalPayable,
+        totalReceivable,
+        balance: totalReceivable - totalPayable
+      });
     } catch (error) {
       console.error('Erro ao buscar dados financeiros');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (item: any) => {
+    try {
+      const table = activeTab === 'PAYABLE' ? 'AccountPayable' : 'AccountReceivable';
+      const newStatus = item.status === 'PENDENTE' ? 'PAGO' : 'PENDENTE';
+      
+      const { error } = await supabase
+        .from(table)
+        .update({ status: newStatus })
+        .eq('id', item.id);
+
+      if (error) throw error;
+      fetchData();
+    } catch (error: any) {
+      alert('Erro ao atualizar status: ' + error.message);
     }
   };
 
@@ -195,15 +223,21 @@ export default function Finance() {
                       padding: '4px 8px', 
                       borderRadius: '4px',
                       fontSize: '0.8rem',
-                      background: item.status === 'PAID' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                      color: item.status === 'PAID' ? 'var(--success)' : 'var(--error)'
+                      background: item.status === 'PAGO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                      color: item.status === 'PAGO' ? 'var(--success)' : 'var(--error)'
                     }}>
-                      {item.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}
+                      {item.status === 'PAGO' ? 'LIQUIDADO' : 'PENDENTE'}
                     </span>
                   </td>
                   <td>
                     <div className="flex gap-2">
-                      <button className="icon-btn" title="Dar Baixa"><CheckCircle size={16} /></button>
+                      <button 
+                        className="icon-btn" 
+                        title={item.status === 'PAGO' ? 'Reverter Baixa' : 'Dar Baixa'}
+                        onClick={() => handleToggleStatus(item)}
+                      >
+                        {item.status === 'PAGO' ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
+                      </button>
                       <button className="icon-btn"><Edit size={16} /></button>
                     </div>
                   </td>

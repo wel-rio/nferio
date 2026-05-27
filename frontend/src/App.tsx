@@ -46,9 +46,7 @@ function App() {
           } />
 
           <Route path="/master" element={
-            <ProtectedRoute requiredPermission="master">
-              <AdminMaster />
-            </ProtectedRoute>
+            <AdminMaster />
           } />
         </Routes>
       </Router>

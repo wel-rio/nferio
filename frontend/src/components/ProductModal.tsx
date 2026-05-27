@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Package, Search } from 'lucide-react';
-import api from '../services/api';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import NcmSearchModal from './NcmSearchModal';
 
 interface ProductModalProps {
@@ -9,6 +10,7 @@ interface ProductModalProps {
 }
 
 export default function ProductModal({ onClose, onSuccess }: ProductModalProps) {
+  const { company } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
@@ -24,18 +26,29 @@ export default function ProductModal({ onClose, onSuccess }: ProductModalProps) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!company) return;
+
     try {
-      await api.post('/products', {
-        ...formData,
-        price: Number(formData.price),
-        cost: Number(formData.cost),
-        stock: Number(formData.stock),
-        companyId: 'default-company-id'
-      });
+      const { error } = await supabase
+        .from('Product')
+        .insert([{
+          name: formData.name,
+          sku: formData.sku,
+          barcode: formData.barcode,
+          price: Number(formData.price),
+          cost: Number(formData.cost),
+          stock: Number(formData.stock),
+          ncm: formData.ncm,
+          category: formData.category,
+          companyId: company.id
+        }]);
+
+      if (error) throw error;
+      
       onSuccess();
       onClose();
-    } catch (error) {
-      alert('Erro ao salvar produto');
+    } catch (error: any) {
+      alert('Erro ao salvar produto: ' + error.message);
     }
   };
 

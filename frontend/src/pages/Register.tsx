@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Building2, Receipt, Loader2 } from 'lucide-react';
-import api from '../services/api';
+import { supabase } from '../lib/supabase';
 import './Auth.css';
 
 export default function Register() {
@@ -21,10 +21,48 @@ export default function Register() {
     setLoading(true);
     setError('');
     try {
-      await api.post('/auth/register', formData);
-      navigate('/login', { state: { message: 'Conta criada com sucesso! Faça login para começar.' } });
+      // 1. Criar Empresa no Supabase
+      const { data: company, error: companyError } = await supabase
+        .from('empresas')
+        .insert([{ 
+          razao_social: formData.razaoSocial, 
+          cnpj: formData.cnpj 
+        }])
+        .select()
+        .single();
+
+      if (companyError) throw companyError;
+
+      // 2. Criar Usuário no Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name,
+            company_id: company.id
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      // 3. Criar Perfil na tabela usuarios (vinculando ao auth.uid)
+      const { error: profileError } = await supabase
+        .from('usuarios')
+        .insert([{
+          id: authData.user?.id,
+          name: formData.name,
+          email: formData.email,
+          role: 'OWNER',
+          company_id: company.id
+        }]);
+
+      if (profileError) throw profileError;
+
+      navigate('/login', { state: { message: 'Conta criada com sucesso! Verifique seu e-mail ou faça login.' } });
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao realizar cadastro');
+      setError(err.message || 'Erro ao realizar cadastro');
     } finally {
       setLoading(false);
     }

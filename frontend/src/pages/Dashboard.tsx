@@ -20,7 +20,9 @@ import {
   Shield,
   FileDown,
   PieChart,
-  FileText
+  FileText,
+  Globe,
+  AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api, { fiscalApi, FISCAL_URL } from '../services/api';
@@ -67,10 +69,32 @@ export default function Dashboard() {
   const fetchUsers = async () => {
     if (!company) return;
     try {
-      const res = await api.get('/users', { params: { companyId: company.id } });
-      setUsers(res.data);
+      const { data, error } = await supabase
+        .from('User')
+        .select('*')
+        .eq('companyId', company.id)
+        .order('createdAt', { ascending: false });
+
+      if (error) throw error;
+      setUsers(data || []);
     } catch (error) {
       console.error('Failed to fetch users', error);
+    }
+  };
+
+  const fetchProducts = async () => {
+    if (!company) return;
+    try {
+      const { data, error } = await supabase
+        .from('Product')
+        .select('*')
+        .eq('companyId', company.id)
+        .order('createdAt', { ascending: false });
+
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Failed to fetch products', error);
     }
   };
   
@@ -82,25 +106,30 @@ export default function Dashboard() {
     currentStock: 0
   });
 
-  const fetchProducts = async () => {
-    if (!company) return;
-    try {
-      const res = await api.get('/products', { params: { companyId: company.id } });
-      setProducts(res.data);
-    } catch (error) {
-      console.error('Failed to fetch products', error);
-    }
-  };
-
 // Orders State
   const [orders, setOrders] = useState<any[]>([]);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
 
   const fetchOrders = async () => {
     if (!company) return;
+  const fetchOrders = async () => {
+    if (!company) return;
     try {
-      const res = await api.get('/orders', { params: { companyId: company.id } });
-      setOrders(res.data);
+      const { data, error } = await supabase
+        .from('Order')
+        .select(`
+          *,
+          customer:Customer(*),
+          items:OrderItem(
+            *,
+            product:Product(*)
+          )
+        `)
+        .eq('companyId', company.id)
+        .order('createdAt', { ascending: false });
+
+      if (error) throw error;
+      setOrders(data || []);
     } catch (error) {
       console.error('Failed to fetch orders', error);
     }
@@ -108,22 +137,93 @@ export default function Dashboard() {
 
   const convertOrder = async (id: string) => {
     try {
-      await api.post(`/orders/${id}/convert`);
+      // 1. Busca o pedido e itens
+      const { data: order, error: fetchErr } = await supabase
+        .from('Order')
+        .select('*, items:OrderItem(*)')
+        .eq('id', id)
+        .single();
+      
+      if (fetchErr || !order) throw new Error('Pedido não encontrado');
+      if (order.status !== 'ORCAMENTO') throw new Error('Apenas orçamentos podem ser convertidos');
+
+      // 2. Atualiza status para PEDIDO
+      const { error: updateErr } = await supabase
+        .from('Order')
+        .update({ status: 'PEDIDO' })
+        .eq('id', id);
+      
+      if (updateErr) throw updateErr;
+
+      // 3. Processa estoque para cada item
+      for (const item of order.items) {
+        // Baixa estoque
+        const { data: product } = await supabase.from('Product').select('stock').eq('id', item.productId).single();
+        if (product) {
+          await supabase.from('Product').update({ stock: (product.stock || 0) - item.quantity }).eq('id', item.productId);
+        }
+
+        // Registra transação
+        await supabase.from('StockTransaction').insert([{
+          companyId: order.companyId,
+          productId: item.productId,
+          type: 'OUT',
+          quantity: item.quantity,
+          reason: `Conversão - Pedido #${order.orderNumber}`
+        }]);
+      }
+
+      // 4. Gera conta a receber
+      await supabase.from('AccountReceivable').insert([{
+        companyId: order.companyId,
+        orderId: order.id,
+        description: `Venda (Conversão) - Pedido #${order.orderNumber}`,
+        amount: order.netAmount,
+        status: 'PENDENTE',
+        dueDate: new Date().toISOString()
+      }]);
+
+      alert('Pedido convertido com sucesso!');
       fetchOrders();
-      fetchProducts(); // Update stock in products tab
-    } catch (error) {
-      alert('Erro ao converter pedido');
+      fetchProducts();
+    } catch (error: any) {
+      alert('Erro ao converter pedido: ' + error.message);
     }
   };
-
-  // Finance State
-  const [financeSummary, setFinanceSummary] = useState<any>({ totalReceivable: 0, recentMoves: [] });
 
   const fetchFinance = async () => {
     if (!company) return;
     try {
-      const res = await api.get('/finance/summary', { params: { companyId: company.id } });
-      setFinanceSummary(res.data);
+      // Busca Recebíveis
+      const { data: receivables } = await supabase
+        .from('AccountReceivable')
+        .select('*')
+        .eq('companyId', company.id)
+        .eq('status', 'PENDENTE');
+
+      // Busca Pagáveis
+      const { data: payables } = await supabase
+        .from('AccountPayable')
+        .select('*')
+        .eq('companyId', company.id)
+        .eq('status', 'PENDENTE');
+
+      const totalReceivable = (receivables || []).reduce((acc, curr) => acc + curr.amount, 0);
+      const totalPayable = (payables || []).reduce((acc, curr) => acc + curr.amount, 0);
+
+      // Busca movimentações recentes (CashFlow)
+      const { data: recentMoves } = await supabase
+        .from('CashFlow')
+        .select('*')
+        .eq('companyId', company.id)
+        .order('createdAt', { ascending: false })
+        .limit(10);
+
+      setFinanceSummary({ 
+        totalReceivable, 
+        totalPayable,
+        recentMoves: recentMoves || [] 
+      });
     } catch (error) {
       console.error('Failed to fetch finance', error);
     }
@@ -150,7 +250,8 @@ export default function Dashboard() {
     nfeSerie: 1,
     nfeNextNumber: 1,
     nfceSerie: 1,
-    nfceNextNumber: 1
+    nfceNextNumber: 1,
+    fiscalApiUrl: ''
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [configLoading, setConfigLoading] = useState(false);
@@ -158,17 +259,46 @@ export default function Dashboard() {
   const [certExpiration, setCertExpiration] = useState<string>('');
 
   const fetchConfig = async () => {
-    if (!company) return;
     try {
-      const res = await fiscalApi.get('/company/setup/current', { params: { companyId: company.id } });
-      if (res.data) {
-        setCompanyConfig(res.data);
-        // Busca data de vencimento
-        const certRes = await fiscalApi.get('/company/cert-info', { params: { companyId: company.id } });
-        setCertExpiration(certRes.data.vencimento);
+      if (!company?.id) return;
+      const { data, error } = await supabase
+        .from('empresas')
+        .select('*')
+        .eq('id', company.id)
+        .single();
+      
+      if (error) throw error;
+
+      if (data) {
+        setCompanyConfig({
+          id: data.id,
+          razaoSocial: data.razao_social,
+          cnpj: data.cnpj,
+          inscricaoEstadual: data.inscricao_estadual,
+          municipio: data.municipio,
+          uf: data.uf,
+          codigoIbge: data.codigo_ibge,
+          crt: data.crt,
+          logradouro: data.logradouro,
+          numero: data.numero,
+          bairro: data.bairro,
+          cep: data.cep,
+          telefone: data.telefone,
+          cscId: data.csc_id,
+          cscKey: data.csc_key,
+          nfeSerie: data.nfe_serie,
+          nfeNextNumber: data.nfe_next_number,
+          nfceSerie: data.nfce_serie,
+          nfceNextNumber: data.nfce_next_number,
+          ambiente: data.ambiente || '2',
+          senhaCertificado: data.senha_certificado,
+          certificadoUrl: data.certificado_url,
+          validadeCertificado: data.validade_certificado,
+          fiscalApiUrl: data.fiscal_api_url
+        });
       }
     } catch (error) {
-      console.error('Failed to fetch config from VPS', error);
+      console.error('Erro ao buscar config:', error);
     }
   };
 
@@ -264,25 +394,65 @@ export default function Dashboard() {
     if (!company) return;
     try {
       setConfigLoading(true);
-      const formData = new FormData();
-      formData.append('companyId', company.id);
-      Object.keys(companyConfig).forEach(key => {
-        if (companyConfig[key] !== undefined && companyConfig[key] !== null) {
-          formData.append(key, String(companyConfig[key]));
-        }
-      });
+      
+      let certificadoUrl = companyConfig.certificadoUrl;
+
+      // 1. Upload do Certificado (se houver novo arquivo)
       if (selectedFile) {
-        formData.append('certificado', selectedFile);
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `${company.id}.${fileExt}`;
+        const filePath = `certificados/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('certificados-a1')
+          .upload(filePath, selectedFile, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('certificados-a1')
+          .getPublicUrl(filePath);
+        
+        certificadoUrl = publicUrl;
       }
 
-      await api.post('/company/setup', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      // 2. Atualizar no Banco de Dados
+      const { error } = await supabase
+        .from('empresas')
+        .update({
+          razao_social: companyConfig.razaoSocial,
+          cnpj: companyConfig.cnpj,
+          inscricao_estadual: companyConfig.inscricaoEstadual,
+          municipio: companyConfig.municipio,
+          uf: companyConfig.uf,
+          codigo_ibge: companyConfig.codigoIbge,
+          crt: companyConfig.crt,
+          logradouro: companyConfig.logradouro,
+          numero: companyConfig.numero,
+          bairro: companyConfig.bairro,
+          cep: companyConfig.cep,
+          telefone: companyConfig.telefone,
+          csc_id: companyConfig.cscId,
+          csc_key: companyConfig.cscKey,
+          nfe_serie: Number(companyConfig.nfeSerie),
+          nfe_next_number: Number(companyConfig.nfeNextNumber),
+          nfce_serie: Number(companyConfig.nfceSerie),
+          nfce_next_number: Number(companyConfig.nfceNextNumber),
+          ambiente: companyConfig.ambiente,
+          senha_certificado: companyConfig.senhaCertificado,
+          certificado_url: certificadoUrl,
+          fiscal_api_url: companyConfig.fiscalApiUrl
+        })
+        .eq('id', company.id);
+
+      if (error) throw error;
+
       alert('Configurações salvas com sucesso!');
-      // Atualiza o contexto da empresa se necessário
-    } catch (error) {
-      console.error('Erro ao salvar configurações', error);
-      alert('Erro ao salvar configurações. Verifique os dados e tente novamente.');
+      setSelectedFile(null);
+      fetchConfig();
+    } catch (error: any) {
+      console.error('Erro ao salvar config:', error);
+      alert('Erro ao salvar configurações: ' + error.message);
     } finally {
       setConfigLoading(false);
     }
@@ -644,16 +814,27 @@ export default function Dashboard() {
                                             return;
                                           }
 
-                                          const res = await fiscalApi.post('/emit-stateless', formData);
+                                          const targetUrl = companyConfig.fiscalApiUrl || FISCAL_URL;
+                                          const { data: { session } } = await supabase.auth.getSession();
                                           
-                                          if (res.data.success) {
+                                          const res = await fetch(`${targetUrl}/emit-stateless`, {
+                                            method: 'POST',
+                                            headers: { 
+                                              'Authorization': `Bearer ${session?.access_token}`
+                                            },
+                                            body: formData
+                                          });
+                                          
+                                          const resData = await res.json();
+                                          
+                                          if (resData.success) {
                                             alert('Nota Autorizada com Sucesso!');
                                             // Abre o DANFE
                                             const { danfeGenerator } = await import('../utils/danfeGenerator');
-                                            danfeGenerator.generate(res.data.retorno);
+                                            danfeGenerator.generate(resData.retorno);
                                             fetchOrders();
                                           } else {
-                                            alert('Erro na Emissão: ' + res.data.error);
+                                            alert('Erro na Emissão: ' + (resData.error || resData.message));
                                           }
                                         } catch (error: any) {
                                           alert('Erro na comunicação com a VPS Fiscal: ' + error.message);
@@ -974,6 +1155,22 @@ export default function Dashboard() {
                         <div style={{ marginTop: '1rem' }}>
                           <input type="text" className="glass-input" placeholder="Telefone de Contato" value={companyConfig.telefone} 
                             onChange={(e) => setCompanyConfig({...companyConfig, telefone: e.target.value})} />
+                        </div>
+                        
+                        <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(56, 189, 248, 0.05)', borderRadius: '12px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+                          <h4 style={{ color: 'var(--accent-primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Globe size={18} /> Gateway Fiscal (API)
+                          </h4>
+                          <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.8rem' }}>
+                            Insira a URL da sua VPS ou Proxy Fiscal (Cloudflare Workers).
+                          </p>
+                          <input 
+                            type="text" 
+                            className="glass-input" 
+                            placeholder="https://nferio-fiscal.seusite.com/api/fiscal"
+                            value={companyConfig.fiscalApiUrl} 
+                            onChange={(e) => setCompanyConfig({...companyConfig, fiscalApiUrl: e.target.value})} 
+                          />
                         </div>
                       </div>
                     </div>

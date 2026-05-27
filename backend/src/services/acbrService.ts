@@ -51,14 +51,25 @@ export const acbrService = {
         NFE_CarregarINI: this.lib.func('int NFE_CarregarINI(const char* eArquivoOuIni)'),
         NFE_Assinar: this.lib.func('int NFE_Assinar()'),
         NFE_Validar: this.lib.func('int NFE_Validar()'),
-        NFE_Enviar: this.lib.func('int NFE_Enviar(int ALote, bool AImprimir, bool ASincrono, out Buffer sResposta, out int* esTamanho)'),
-        NFE_ObterCertificadoDataVencimento: this.lib.func('int NFE_ObterCertificadoDataVencimento(out Buffer sResposta, out int* esTamanho)'),
-        NFE_UltimoRetorno: this.lib.func('int NFE_UltimoRetorno(out Buffer sResposta, out int* esTamanho)')
+        NFE_Enviar: this.lib.func('int NFE_Enviar(int ALote, bool AImprimir, bool ASincrono, _Out_ char* sResposta, _Inout_ int* esTamanho)')
       };
     }
     
     const res = this.functions.NFE_Inicializar('', '');
     if (res !== 0 && res !== 1) throw new Error(`Erro ao inicializar ACBrLib: ${res}`);
+  },
+
+  /**
+   * Verifica se o ambiente da biblioteca está pronto
+   */
+  async checkEnvironment(): Promise<boolean> {
+    try {
+      if (!this.lib) await this.init();
+      return true;
+    } catch (e) {
+      console.warn("ACBrLib checkEnvironment failed:", (e as any).message);
+      return false;
+    }
   },
 
   /**
@@ -147,12 +158,28 @@ export const acbrService = {
    * Consulta Vencimento
    */
   async getCertDate(company: any, certBuffer?: Buffer): Promise<string> {
+    return "N/A - Função NFE_ObterCertificadoDataVencimento removida por incompatibilidade com a versão do ACBr compilada no Linux.";
+  },
+
+  /**
+   * Validar NFe
+   */
+  async validarNFe(dados: string, company: any, certBuffer?: Buffer): Promise<any> {
     return this.runSafe(company, certBuffer, async () => {
-      const buffer = Buffer.alloc(256);
-      const size = new Int32Array([256]);
-      const res = this.functions.NFE_ObterCertificadoDataVencimento(buffer, size);
-      if (res !== 0) return "Erro na leitura";
-      return buffer.toString('utf8').replace(/\0/g, '').trim();
+      let res = this.functions.NFE_CarregarINI(dados);
+      if (res !== 0) throw new Error(`Erro ao carregar INI: ${res}`);
+
+      res = this.functions.NFE_Validar();
+      if (res !== 0) throw new Error(`Erro ao validar: ${res}`);
+
+      return { success: true, detalhes: 'Nota validada com sucesso' };
     });
+  },
+
+  /**
+   * Obter versão do ACBrLib
+   */
+  async getVersao(): Promise<string> {
+    return "ACBrLibNFe (Mock ou N/A pois NFE_Versao nao exportado)";
   }
 };

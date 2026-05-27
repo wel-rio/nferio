@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, FileDown, Search, Check, AlertTriangle } from 'lucide-react';
-import api, { fiscalApi } from '../services/api';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 interface NFeEntryModalProps {
@@ -25,31 +25,94 @@ export default function NFeEntryModal({ onClose, onSuccess }: NFeEntryModalProps
 
     setLoading(true);
     try {
-      // Em uma implementação real, leríamos o XML aqui ou enviaríamos via FormData
-      // Para manter a fluidez, vamos simular o envio da estrutura que o backend espera
-      
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const content = e.target?.result as string;
-          // Aqui poderíamos parsear o XML no frontend se necessário
-          // Mas vamos enviar para a rota que processa a entrada
-          
-          await fiscalApi.post('/fiscal/process-entry', {
-            xmlContent: content,
-            companyId: company.id
-          });
-          
-          onSuccess();
-          onClose();
-        } catch (err) {
-          alert('Erro ao processar conteúdo do XML');
-        }
-      };
-      reader.readAsText(selectedFile);
+      const content = await selectedFile.text();
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(content, "text/xml");
 
-    } catch (error) {
-      alert('Erro ao processar NF-e');
+      // 1. Extrair Dados Básicos
+      const nNF = xmlDoc.getElementsByTagName("nNF")[0]?.textContent;
+      const xNome = xmlDoc.getElementsByTagName("xNome")[0]?.textContent;
+      const cnpjEmit = xmlDoc.getElementsByTagName("CNPJ")[0]?.textContent;
+      const vNF = xmlDoc.getElementsByTagName("vNF")[0]?.textContent;
+
+      // 2. Extrair Itens
+      const detTags = xmlDoc.getElementsByTagName("det");
+      const items = Array.from(detTags).map(det => {
+        const prod = det.getElementsByTagName("prod")[0];
+        return {
+          sku: prod.getElementsByTagName("cProd")[0]?.textContent,
+          name: prod.getElementsByTagName("xProd")[0]?.textContent,
+          qCom: Number(prod.getElementsByTagName("qCom")[0]?.textContent),
+          vUnCom: Number(prod.getElementsByTagName("vUnCom")[0]?.textContent),
+          vProd: Number(prod.getElementsByTagName("vProd")[0]?.textContent),
+        };
+      });
+
+      // 3. Extrair Duplicatas (Financeiro)
+      const dupTags = xmlDoc.getElementsByTagName("dup");
+      const payables = Array.from(dupTags).map(dup => ({
+        nDup: dup.getElementsByTagName("nDup")[0]?.textContent,
+        dVenc: dup.getElementsByTagName("dVenc")[0]?.textContent,
+        vDup: Number(dup.getElementsByTagName("vDup")[0]?.textContent),
+      }));
+
+      // 4. Salvar Financeiro (AccountPayable)
+      const payableEntries = payables.length > 0 ? payables.map(p => ({
+        description: `Compra NFe ${nNF} - ${xNome}`,
+        amount: p.vDup,
+        dueDate: p.dVenc,
+        status: 'PENDENTE',
+        companyId: company.id
+      })) : [{
+        description: `Compra NFe ${nNF} - ${xNome}`,
+        amount: Number(vNF),
+        dueDate: new Date().toISOString(),
+        status: 'PENDENTE',
+        companyId: company.id
+      }];
+
+      const { error: payableError } = await supabase
+        .from('AccountPayable')
+        .insert(payableEntries);
+
+      if (payableError) throw payableError;
+
+      // 5. Atualizar Estoque (Simplificado: Tenta achar por SKU ou Nome)
+      for (const item of items) {
+        // Tenta achar produto
+        const { data: existingProd } = await supabase
+          .from('Product')
+          .select('id, stock')
+          .eq('companyId', company.id)
+          .or(`sku.eq.${item.sku},name.eq.${item.name}`)
+          .single();
+
+        if (existingProd) {
+          await supabase
+            .from('Product')
+            .update({ stock: existingProd.stock + item.qCom })
+            .eq('id', existingProd.id);
+        } else {
+          // Opcional: Criar produto se não existe
+          await supabase
+            .from('Product')
+            .insert([{
+              name: item.name,
+              sku: item.sku,
+              price: item.vUnCom * 1.5, // Markup sugerido de 50%
+              stock: item.qCom,
+              companyId: company.id
+            }]);
+        }
+      }
+
+      alert('NF-e Processada! Estoque e Financeiro atualizados.');
+      onSuccess();
+      onClose();
+
+    } catch (error: any) {
+      console.error(error);
+      alert('Erro ao processar NF-e: ' + error.message);
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Plus, Edit, Trash2, Mail, User as UserIcon } from 'lucide-react';
 import UserModal from '../components/UserModal';
@@ -14,8 +14,13 @@ export default function Users() {
     if (!company) return;
     try {
       setLoading(true);
-      const res = await api.get('/users', { params: { companyId: company.id } });
-      setUsers(res.data);
+      const { data, error } = await supabase
+        .from('User')
+        .select('*')
+        .eq('companyId', company.id)
+        .order('name');
+      
+      if (data) setUsers(data);
     } catch (error) {
       console.error('Erro ao buscar usuários', error);
     } finally {

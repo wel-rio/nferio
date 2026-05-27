@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Users, Search, Plus, MapPin, Phone, Mail, Building2, Trash2, Edit, X } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export default function Customers() {
   const { company } = useAuth();
@@ -28,10 +28,13 @@ export default function Customers() {
     if (!company) return;
     try {
       setLoading(true);
-      const res = await api.get('/customers', {
-        params: { companyId: company.id }
-      });
-      setCustomers(res.data);
+      const { data, error } = await supabase
+        .from('Customer')
+        .select('*')
+        .eq('companyId', company.id)
+        .order('name');
+      
+      if (data) setCustomers(data);
     } catch (error) {
       console.error('Erro ao buscar clientes', error);
     } finally {
@@ -41,7 +44,7 @@ export default function Customers() {
 
   useEffect(() => {
     fetchCustomers();
-  }, []);
+  }, [company]);
 
   const handleCnpjLookup = async (cnpj: string) => {
     const cleanCnpj = cnpj.replace(/\D/g, '');
@@ -69,15 +72,36 @@ export default function Customers() {
     if (!company) return;
     try {
       if (formData.id) {
-        await api.put(`/customers/${formData.id}`, { ...formData, companyId: company.id });
+        const { error } = await supabase
+          .from('Customer')
+          .update({
+            name: formData.name,
+            document: formData.document,
+            email: formData.email,
+            phone: formData.phone,
+            type: formData.type,
+            ie: formData.ie,
+            address: formData.address,
+            city: formData.city,
+            uf: formData.uf
+          })
+          .eq('id', formData.id);
+        if (error) throw error;
       } else {
-        await api.post('/customers', { ...formData, companyId: company.id });
+        const { error } = await supabase
+          .from('Customer')
+          .insert([{
+            ...formData,
+            id: undefined, // Let DB generate UUID
+            companyId: company.id
+          }]);
+        if (error) throw error;
       }
       setIsModalOpen(false);
       setFormData({ id: '', name: '', document: '', email: '', phone: '', type: 'CUSTOMER', ie: '', address: '', city: '', uf: '' });
       fetchCustomers();
-    } catch (error) {
-      alert('Erro ao salvar cliente');
+    } catch (error: any) {
+      alert('Erro ao salvar cliente: ' + error.message);
     }
   };
 

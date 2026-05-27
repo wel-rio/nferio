@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, UserPlus, Shield } from 'lucide-react';
-import api from '../services/api';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 interface UserModalProps {
@@ -14,7 +14,7 @@ export default function UserModal({ onClose, onSuccess }: UserModalProps) {
     name: '',
     email: '',
     password: '',
-    role: 'USER',
+    role: 'OPERATOR',
     permissions: [] as string[]
   });
 
@@ -41,16 +41,25 @@ export default function UserModal({ onClose, onSuccess }: UserModalProps) {
     e.preventDefault();
     if (!company) return;
     try {
-      await api.post('/users', {
-        ...formData,
-        permissions: formData.permissions.join(','),
-        companyId: company.id
-      });
+      // Inserir na tabela User
+      const { error } = await supabase
+        .from('User')
+        .insert([{
+          name: formData.name,
+          email: formData.email,
+          password: formData.password, // Nota: No Auth do Supabase a senha fica no auth.users
+          role: formData.role,
+          permissions: formData.permissions.join(','),
+          companyId: company.id
+        }]);
+
+      if (error) throw error;
+
+      alert('Funcionário cadastrado na base! Ele agora pode realizar o primeiro acesso.');
       onSuccess();
       onClose();
     } catch (error: any) {
-      const msg = error.response?.data?.error || error.message || 'Erro desconhecido';
-      alert(`Erro ao criar usuário: ${msg}`);
+      alert(`Erro ao criar usuário: ${error.message}`);
     }
   };
 

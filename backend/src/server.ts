@@ -58,7 +58,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/reports', reportRoutes);
 
 // Inicializa a ACBrLib ao subir o servidor
-acbrService.checkEnvironment().then(ready => {
+acbrService.checkEnvironment().then((ready: boolean) => {
   if (ready) {
     console.log('🚀 ACBrLib pronta para uso no backend.');
   } else {
