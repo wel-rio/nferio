@@ -55,7 +55,9 @@ export const acbrService = {
       };
     }
     
-    const res = this.functions.NFE_Inicializar('', '');
+    // Forçar caminho absoluto para o arquivo de configuração no Linux para evitar Erro -1 (permissão/path)
+    const configPath = process.platform === 'win32' ? '' : require('path').join(process.cwd(), 'acbr.ini');
+    const res = this.functions.NFE_Inicializar(configPath, '');
     if (res !== 0 && res !== 1) throw new Error(`Erro ao inicializar ACBrLib: ${res}`);
   },
 
